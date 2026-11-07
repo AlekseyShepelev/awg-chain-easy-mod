@@ -33,6 +33,7 @@ cleanup() {
   ip link delete dev awg3 2>/dev/null || true
   ip link delete dev awg2 2>/dev/null || true
   ip link delete dev wg-native 2>/dev/null || true
+  nft delete table inet awg_chain_startup 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -76,6 +77,18 @@ mkdir -p /etc/wireguard
 chmod 700 /etc/wireguard
 mkdir -p /var/run/wireguard
 node /app/server.js --initialize
+
+# Keep clients blocked until the management process has installed saved routing.
+cat > /tmp/awg-chain-startup.nft <<'NFT'
+table inet awg_chain_startup {
+  chain forward {
+    type filter hook forward priority -20; policy accept;
+    iifname { "awg3", "awg2", "wg-native" } drop
+  }
+}
+NFT
+nft -f /tmp/awg-chain-startup.nft
+rm -f /tmp/awg-chain-startup.nft
 
 start_tunnel awg3 /etc/wireguard/wg0.conf "${WG_DEFAULT_ADDRESS%x}1/24" "$network3" amneziawg-go awg awg-quick /var/run/amneziawg/awg3.sock
 start_tunnel awg2 /etc/wireguard/wg2.conf "${AWG2_DEFAULT_ADDRESS%x}1/24" "$network2" amneziawg-go awg awg-quick /var/run/amneziawg/awg2.sock

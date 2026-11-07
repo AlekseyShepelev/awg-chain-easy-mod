@@ -8,7 +8,7 @@ const { spawn, execFileSync } = require('node:child_process');
 const { setTimeout: delay } = require('node:timers/promises');
 const test = require('node:test');
 
-test('client and upstream address reservations through the live API', { timeout: 90_000 }, async (t) => {
+test('isolated upstream addresses and client reservations through the live API', { timeout: 180_000 }, async (t) => {
   const password = crypto.randomBytes(24).toString('base64url');
   const passwordHash = execFileSync('node', ['/app/hash-password.js'], { input: password, encoding: 'utf8' }).trim();
   const service = spawn('/usr/local/bin/awg-chain-easy-entrypoint', [], {
@@ -68,43 +68,46 @@ test('client and upstream address reservations through the live API', { timeout:
 
   let firstUpstream;
   let art;
-  await t.test('reserves an imported upstream before allocating clients', async () => {
+  await t.test('upstream and client can use the same address without changing local allocation', async () => {
     firstUpstream = await upstream('first-upstream', '10.8.3.2');
     art = await create('art');
     const bol = await create('bol');
     const list = await clients();
-    assert.equal(list.find((c) => c.id === art.id).address, '10.8.3.3');
-    assert.equal(list.find((c) => c.id === bol.id).address, '10.8.3.4');
+    assert.equal(list.find((c) => c.id === art.id).address, '10.8.3.2');
+    assert.equal(list.find((c) => c.id === bol.id).address, '10.8.3.3');
     await api(`/api/wireguard/client/${bol.id}`, 'DELETE');
     const recreated = await create('bol');
-    assert.equal((await clients()).find((c) => c.id === recreated.id).address, '10.8.3.4');
+    assert.equal((await clients()).find((c) => c.id === recreated.id).address, '10.8.3.3');
   });
 
-  await t.test('disabled upstreams continue reserving their addresses', async () => {
+  await t.test('local client reservations remain unique when an upstream is disabled', async () => {
     await api(`/api/routing/upstreams/${firstUpstream.id}/disable`, 'POST');
     const created = await create('while-upstream-disabled');
     assert.notEqual((await clients()).find((c) => c.id === created.id).address, '10.8.3.2');
     await api(`/api/routing/upstreams/${firstUpstream.id}/enable`, 'POST');
   });
 
-  await t.test('rejects server, enabled client, disabled client, and upstream collisions', async () => {
-    for (const address of ['10.8.3.1', '10.8.4.1', '10.8.5.1', '10.8.3.2', '10.8.3.3', '010.008.003.002']) {
-      const result = await upstream(`conflict-${address}`, address, 409);
-      assert.match(result.error, /already used/);
+  await t.test('isolates imports matching server, client, and another upstream address', async () => {
+    for (const address of ['10.8.3.1', '10.8.4.1', '10.8.5.1', '10.8.3.2', '10.8.3.3']) {
+      const result = await upstream(`overlap-${address}`, address);
+      const rootAddresses = JSON.parse(execFileSync('ip', ['-j', '-4', 'address', 'show'], { encoding: 'utf8' }));
+      assert.ok(!rootAddresses.some((entry) => entry.ifname === result.interface));
+      await api(`/api/routing/upstreams/${result.id}`, 'DELETE');
     }
     await api(`/api/wireguard/client/${art.id}/disable`, 'POST');
-    await upstream('disabled-client-conflict', '10.8.3.3', 409);
+    const disabledOverlap = await upstream('disabled-client-overlap', '10.8.3.2');
+    await api(`/api/routing/upstreams/${disabledOverlap.id}`, 'DELETE');
     await api(`/api/wireguard/client/${art.id}/enable`, 'POST');
   });
 
-  await t.test('reserves upstream addresses in all inbound protocol pools', async () => {
+  await t.test('upstreams can overlap all inbound protocol pools', async () => {
     await upstream('awg2-pool', '10.8.4.2');
     await upstream('native-pool', '10.8.5.2');
     const legacy = await create('legacy', 'AWG2');
     const native = await create('native', 'WG');
     const list = await clients();
-    assert.equal(list.find((c) => c.id === legacy.id).address, '10.8.4.3');
-    assert.equal(list.find((c) => c.id === native.id).address, '10.8.5.3');
+    assert.equal(list.find((c) => c.id === legacy.id).address, '10.8.4.2');
+    assert.equal(list.find((c) => c.id === native.id).address, '10.8.5.2');
   });
 
   await t.test('concurrent client creation allocates unique addresses and names', async () => {
@@ -118,7 +121,7 @@ test('client and upstream address reservations through the live API', { timeout:
     assert.deepEqual(responses.map((r) => r.status).sort(), [201, 409]);
   });
 
-  await t.test('concurrent upstream import and client creation cannot claim the same address', async () => {
+  await t.test('concurrent upstream import and client creation safely share an address', async () => {
     const used = new Set((await clients()).map((c) => c.address));
     used.add('10.8.3.2');
     let candidate;
@@ -130,39 +133,78 @@ test('client and upstream address reservations through the live API', { timeout:
       fetch(`${base}/api/wireguard/client`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ name: 'racing-client' }) }),
     ]);
     assert.equal(responses[1].status, 201);
-    assert.ok([201, 409].includes(responses[0].status));
+    assert.equal(responses[0].status, 201);
     const client = (await clients()).find((c) => c.name === 'racing-client');
-    if (responses[0].status === 201) assert.notEqual(client.address, candidate);
-    else assert.equal(client.address, candidate);
+    assert.equal(client.address, candidate);
   });
 
-  await t.test('unreadable disabled upstream configuration blocks unsafe allocation', async () => {
+  await t.test('unreadable disabled upstream does not affect independent client allocation', async () => {
     await api(`/api/routing/upstreams/${firstUpstream.id}/disable`, 'POST');
     const file = path.join('/etc/wireguard/upstreams', `${firstUpstream.id}.conf`);
     fs.renameSync(file, `${file}.test-backup`);
     try {
-      await api('/api/wireguard/client', 'POST', { name: 'must-not-allocate' }, 409);
+      await api('/api/wireguard/client', 'POST', { name: 'independent-allocation' }, 201);
     } finally { fs.renameSync(`${file}.test-backup`, file); }
     await api(`/api/routing/upstreams/${firstUpstream.id}/enable`, 'POST');
   });
 
-  await t.test('re-enabling a conflicting stored upstream is rejected before interface creation', async () => {
+  await t.test('an invalid stored config fails before creating namespace links', async () => {
     await api(`/api/routing/upstreams/${firstUpstream.id}/disable`, 'POST');
     const file = path.join('/etc/wireguard/upstreams', `${firstUpstream.id}.conf`);
     const original = fs.readFileSync(file, 'utf8');
-    fs.writeFileSync(file, profile('10.8.3.3'), { mode: 0o600 });
+    fs.writeFileSync(file, '[Interface]\n', { mode: 0o600 });
     try {
-      await api(`/api/routing/upstreams/${firstUpstream.id}/enable`, 'POST', undefined, 409);
+      await api(`/api/routing/upstreams/${firstUpstream.id}/enable`, 'POST', undefined, 400);
       const addresses = JSON.parse(execFileSync('ip', ['-j', '-4', 'address', 'show'], { encoding: 'utf8' }));
-      assert.ok(!addresses.some((entry) => entry.ifname === 'au0'));
+      assert.ok(!addresses.some((entry) => ['au0', 'av0'].includes(entry.ifname)));
     } finally { fs.writeFileSync(file, original, { mode: 0o600 }); }
     await api(`/api/routing/upstreams/${firstUpstream.id}/enable`, 'POST');
   });
 
-  await t.test('deleting the upstream releases its address', async () => {
+  await t.test('upstream priority comments import and export without restarting the tunnel', async () => {
+    const post = (name, config, expected = 201) => api('/api/routing/upstreams', 'POST', { name, config }, expected);
+    const original = profile('10.99.9.2');
+    await post('invalid-priority', '# FailoverPriority = 10001\n' + original, 400);
+    await post('duplicate-priority', '# FailoverPriority = 10\n# FailoverPriority = 20\n' + original, 400);
+    let imported = await (await post('priority-comment', '# FailoverPriority = 15\n' + original)).json();
+    const endpoint = (suffix) => `/api/routing/upstreams/${imported.id}/${suffix}`;
+    const item = (await (await api('/api/routing')).json()).upstreams.find((upstream) => upstream.id === imported.id);
+    assert.equal(item.failoverPriority, 15);
+    const indexFile = `/sys/class/net/av${item.slot}/ifindex`;
+    const index = fs.readFileSync(indexFile, 'utf8');
+    assert.equal((await fetch(`${base}${endpoint('configuration')}`)).status, 401);
+    await api(endpoint('failover-priority'), 'PUT', {}, 400);
+    await api(endpoint('failover-priority'), 'PUT', { failoverPriority: '25' }, 400);
+    await api(endpoint('configuration'), 'POST', undefined, 405);
+    await api(endpoint('failover-priority'), 'PUT', { failoverPriority: 25 });
+    assert.equal(fs.readFileSync(indexFile, 'utf8'), index, 'Priority edits must keep the original interface');
+    const downloaded = await api(endpoint('configuration'));
+    assert.equal(downloaded.headers.get('cache-control'), 'no-store');
+    assert.match(downloaded.headers.get('content-disposition'), /attachment; filename="up-[a-f0-9]{8}\.conf"/);
+    const portable = await downloaded.text();
+    assert.ok(portable.startsWith('# FailoverPriority = 25\n'), 'Download should contain the current metadata priority');
+    assert.ok(portable.replace(/^# FailoverPriority = 25\n/, '') === original, 'Download must preserve all VPN settings');
+    const saved = JSON.parse(fs.readFileSync('/etc/wireguard/routing.json'));
+    assert.equal(saved.upstreams[imported.id].failoverPriority, 25);
+    assert.equal(Object.hasOwn(saved.failover, 'candidates'), false);
+    await api(endpoint('failover-priority'), 'PUT', { failoverPriority: null });
+    assert.ok(await (await api(endpoint('configuration'))).text() === original, 'Excluded exports must omit the priority comment');
+    await api(`/api/routing/upstreams/${imported.id}`, 'DELETE');
+    imported = await (await post('priority-round-trip', portable)).json();
+    assert.equal((await (await api('/api/routing')).json()).upstreams.find((upstream) => upstream.id === imported.id).failoverPriority, 25);
+    await api(endpoint('failover-priority'), 'PUT', { failoverPriority: null });
+    await api(`/api/routing/upstreams/${imported.id}`, 'DELETE');
+  });
+
+  await t.test('default-route failover through the live API and kernel routing', async () => {
+    await require('./failover-api')(api, upstream, firstUpstream.id);
+  });
+
+  await t.test('deleting an upstream preserves the client with the same address', async () => {
     await api(`/api/routing/upstreams/${firstUpstream.id}`, 'DELETE');
     const released = await create('released-address');
-    assert.equal((await clients()).find((c) => c.id === released.id).address, '10.8.3.2');
+    assert.notEqual((await clients()).find((c) => c.id === released.id).address, '10.8.3.2');
+    assert.equal((await clients()).find((c) => c.id === art.id).address, '10.8.3.2');
     assert.equal((await (await api('/api/health')).json()).status, 'healthy');
   });
 });

@@ -511,15 +511,33 @@ async function api(request, response, url) {
     await routing.setDefaultRoute(route);
     return send(response, 200, { success: true });
   }
-  const upstreamMatch = url.pathname.match(/^\/api\/routing\/upstreams\/([0-9a-f-]+)(?:\/(enable|disable))?$/i);
+  if (url.pathname === '/api/routing/failover' && request.method === 'PUT') {
+    await routing.setFailover(await readJson(request));
+    return send(response, 200, { success: true });
+  }
+  if (['/api/routing/failover/preferred', '/api/routing/failover/primary'].includes(url.pathname) && request.method === 'POST') {
+    await routing.returnToPreferred();
+    return send(response, 200, { success: true });
+  }
+  const upstreamMatch = url.pathname.match(/^\/api\/routing\/upstreams\/([0-9a-f-]+)(?:\/(enable|disable|failover-priority|configuration))?$/i);
   if (upstreamMatch) {
+    if (request.method === 'GET' && upstreamMatch[2] === 'configuration') {
+      const config = await routing.exportUpstreamConfig(upstreamMatch[1]);
+      return send(response, 200, config, 'text/plain; charset=utf-8', { 'Content-Disposition': `attachment; filename="up-${upstreamMatch[1].slice(0, 8)}.conf"` });
+    }
+    if (request.method === 'PUT' && upstreamMatch[2] === 'failover-priority') {
+      const body = await readJson(request);
+      if (!body || !Object.hasOwn(body, 'failoverPriority')) throw Object.assign(new Error('failoverPriority is required; use null to exclude the upstream'), { status: 400 });
+      await routing.setUpstreamPriority(upstreamMatch[1], body.failoverPriority);
+      return send(response, 200, { success: true });
+    }
     if (request.method === 'PUT' && !upstreamMatch[2]) {
       const body = await readJson(request);
       if (!body || body.listenPort === undefined) throw Object.assign(new Error('listenPort is required; use 0 for automatic allocation'), { status: 400 });
       await routing.setUpstreamListenPort(upstreamMatch[1], body.listenPort);
       return send(response, 200, { success: true });
     }
-    if (request.method === 'POST' && upstreamMatch[2]) {
+    if (request.method === 'POST' && ['enable', 'disable'].includes(upstreamMatch[2])) {
       await routing.setUpstreamEnabled(upstreamMatch[1], upstreamMatch[2] === 'enable');
       return send(response, 200, { success: true });
     }

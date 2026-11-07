@@ -8,6 +8,9 @@ const net = require('node:net');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { listenPort, portRange, withListenPort, connectionStatus } = require('./connections');
+const { UpstreamNetwork, chooseTransit, stopProcess, alive } = require('./upstream-network');
+const { normalizeFailover, FailoverState, probeUpstream, failoverPriority, priorityFromConfig,
+  withPriorityComment, failoverCandidates, withFailoverConfig, migrateFailover } = require('./failover');
 
 const DATA_DIR = '/etc/wireguard';
 const ROUTING_FILE = path.join(DATA_DIR, 'routing.json');
@@ -53,7 +56,7 @@ function parseIni(config) {
       continue;
     }
     const assignment = line.match(/^([^=]+?)\s*=\s*(.*)$/);
-    if (!assignment || !section) throw httpError(`Invalid upstream config line: ${line.slice(0, 80)}`);
+    if (!assignment || !section) throw httpError('Invalid upstream configuration syntax');
     const key = assignment[1].trim();
     if (/^(PreUp|PostUp|PreDown|PostDown|Table|SaveConfig)$/i.test(key)) throw httpError(`${key} is forbidden in imported upstream configs`);
     sections[section][key] = assignment[2].trim();
@@ -90,7 +93,7 @@ function domainMatches(rule, domain) {
 
 function validateRoute(route, routingState) {
   if (!route || !['direct', 'blocked', 'upstream'].includes(route.type)) throw httpError('Route type must be direct, blocked, or upstream');
-  if (route.type === 'upstream' && !routingState.upstreams[route.upstreamId]) throw httpError('Selected upstream does not exist');
+  if (route.type === 'upstream' && !Object.hasOwn(routingState.upstreams, route.upstreamId)) throw httpError('Selected upstream does not exist');
   return route.type === 'upstream' ? { type: 'upstream', upstreamId: route.upstreamId } : { type: route.type };
 }
 
@@ -124,6 +127,14 @@ class RoutingManager {
     this.runtime = new Map();
     this.operation = Promise.resolve();
     this.stopping = false;
+    this.failover = null;
+    this.failoverGeneration = 0;
+    this.failoverTimer = null;
+    this.failoverAbort = null;
+    this.failoverRun = null;
+    this.failoverError = null;
+    this.failoverLastSwitchAt = null;
+    this.appliedDefaultMark = null;
   }
 
   enqueue(action) {
@@ -142,6 +153,9 @@ class RoutingManager {
       this.state = { version: 1, defaultRoute: { type: 'direct' }, upstreams: {}, policies: {} };
       await this.save();
     }
+    const previous = JSON.stringify(this.state);
+    this.state = migrateFailover(this.state);
+    if (JSON.stringify(this.state) !== previous) await this.save();
   }
 
   async save() {
@@ -178,20 +192,8 @@ class RoutingManager {
     return { parsed, address, mtu, listenPort: port, protocol: isV3 ? 'AWG3' : 'AWG' };
   }
 
-  reservedAddresses(excludeUpstreamId = null) {
-    const addresses = new Set(this.downstreamAddresses().map(ipv4ToNumber));
-    for (const upstream of Object.values(this.state.upstreams)) {
-      if (upstream.id === excludeUpstreamId) continue;
-      let address;
-      try {
-        const config = fs.readFileSync(this.configPath(upstream.id), 'utf8');
-        address = this.validateUpstreamConfig(config).address;
-      } catch (_) {
-        throw httpError('Cannot check reserved addresses: repair or delete the unreadable upstream configuration first.', 409);
-      }
-      addresses.add(ipv4ToNumber(address.split('/')[0]));
-    }
-    return addresses;
+  reservedAddresses() {
+    return new Set(this.downstreamAddresses().map(ipv4ToNumber));
   }
 
   allocateClientAddress(prefix) {
@@ -203,18 +205,19 @@ class RoutingManager {
     throw httpError('No available IPv4 addresses remain in this client pool.', 409);
   }
 
-  assertUpstreamAddressAvailable(address, excludeUpstreamId = null) {
-    const host = address.split('/')[0];
-    if (this.reservedAddresses(excludeUpstreamId).has(ipv4ToNumber(host))) {
-      throw httpError(`Upstream address ${host} is already used by a server, client, or another upstream. Use a different address.`, 409);
-    }
+  upstreamTransit(address) {
+    const routes = JSON.parse(run('ip', ['-j', '-4', 'route', 'show', 'table', 'all']));
+    const networks = routes.map((route) => route.dst).filter((network) => network && network !== 'default' && network !== '0.0.0.0/0');
+    return chooseTransit([...this.downstreamNetworks, address, ...networks,
+      ...[...this.runtime.values()].flatMap((runtime) => runtime.network ? [runtime.network.transit.network] : [])]);
   }
 
   async validateWithAwgQuick(config) {
     const temporary = `/tmp/av${crypto.randomBytes(4).toString('hex')}.conf`;
     await fsp.writeFile(temporary, config, { mode: 0o600 });
     try {
-      run('awg-quick', ['strip', temporary]);
+      try { run('awg-quick', ['strip', temporary]); }
+      catch (_) { throw httpError('Upstream configuration was rejected by awg-quick'); }
     } finally {
       await fsp.unlink(temporary).catch(() => {});
     }
@@ -227,7 +230,8 @@ class RoutingManager {
     const temporary = `/tmp/${upstream.interface}.conf`;
     await fsp.writeFile(temporary, config, { mode: 0o600 });
     try {
-      return run('awg-quick', ['strip', temporary]);
+      try { return run('awg-quick', ['strip', temporary]); }
+      catch (_) { throw new Error('Upstream configuration was rejected by awg-quick'); }
     } finally {
       await fsp.unlink(temporary).catch(() => {});
     }
@@ -293,15 +297,24 @@ class RoutingManager {
   }
 
   async startAll() {
-    for (const upstream of Object.values(this.state.upstreams).filter((item) => item.enabled)) {
-      try { await this.startUpstream(upstream); } catch (error) { this.runtime.set(upstream.id, { status: 'error', error: error.message }); }
-    }
-    await this.reconcile();
+    return this.enqueue(async () => {
+      this.blockDownstreamForwarding();
+      // Protect saved upstream routes before creating any namespace or tunnel.
+      await this.reconcile();
+      for (const upstream of Object.values(this.state.upstreams).filter((item) => item.enabled)) {
+        try { await this.startUpstream(upstream); }
+        catch (error) { this.runtime.set(upstream.id, { ...this.runtime.get(upstream.id), status: 'error', error: error.message }); }
+      }
+      this.resetFailover();
+      await this.reconcile();
+      run('nft', ['delete', 'table', 'inet', 'awg_chain_startup']);
+    });
   }
 
-  async waitForSocket(interfaceName) {
+  async waitForSocket(interfaceName, child) {
     const socket = `/var/run/amneziawg/${interfaceName}.sock`;
     for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (!alive(child)) throw new Error('Upstream userspace daemon failed to start');
       try { await fsp.access(socket); return; } catch (_) { await new Promise((resolve) => setTimeout(resolve, 100)); }
     }
     throw new Error(`UAPI socket did not appear for ${interfaceName}`);
@@ -309,58 +322,64 @@ class RoutingManager {
 
   async startUpstream(upstream) {
     if (this.runtime.get(upstream.id)?.status === 'up') return;
+    await this.stopUpstream(upstream);
+    if (this.failover?.health.has(upstream.id)) this.failover.record(upstream.id, { success: false, available: false });
     const config = await fsp.readFile(this.configPath(upstream.id), 'utf8');
     const details = this.validateUpstreamConfig(config);
-    this.assertUpstreamAddressAvailable(details.address, upstream.id);
     this.assertUpstreamPortAvailable(details.listenPort, upstream.id);
-    tryRun('ip', ['link', 'delete', 'dev', upstream.interface]);
-    await fsp.unlink(`/var/run/amneziawg/${upstream.interface}.sock`).catch(() => {});
-    const child = spawn('amneziawg-go', ['-f', upstream.interface], { stdio: ['ignore', 'ignore', 'pipe'] });
     const rekey = String(details.parsed.Interface.RekeyAfterTime || '120').split('-').map(Number);
-    const runtime = { child, status: 'starting', stopping: false, endpoint: null, error: null, startedAt: Date.now(),
+    const runtime = { status: 'starting', stopping: false, endpoint: null, error: null, startedAt: Date.now(),
       rekeyAfterTime: rekey.every(Number.isFinite) ? Math.max(...rekey) : 120 };
     this.runtime.set(upstream.id, runtime);
-    let daemonError = '';
-    child.stderr.on('data', (chunk) => { daemonError = `${daemonError}${chunk}`.slice(-2048); });
-    child.on('exit', () => {
-      if (runtime.stopping || this.stopping) return;
+    const failed = (message) => {
+      if (runtime.stopping || this.stopping || this.runtime.get(upstream.id) !== runtime) return;
       runtime.status = 'error';
-      runtime.error = daemonError.trim() || 'userspace daemon exited';
-      this.reconcile().catch((error) => { runtime.error = `${runtime.error}; ${error.message}`; });
-    });
+      runtime.error = message;
+      // The permanent prohibit route remains while this active route is withdrawn.
+      tryRun('ip', ['-4', 'route', 'delete', 'default', 'metric', '10', 'table', String(upstream.table)]);
+      this.enqueue(async () => {
+        if (this.runtime.get(upstream.id) !== runtime) return;
+        if (this.failover?.health.has(upstream.id)) this.failover.record(upstream.id, { success: false, available: false });
+        await this.stopUpstream(upstream);
+        this.runtime.set(upstream.id, { status: 'error', error: message });
+        await this.reconcile();
+      }).catch((error) => { runtime.error = `${runtime.error}; ${error.message}`; });
+    };
     try {
-      await this.waitForSocket(upstream.interface);
+      runtime.network = new UpstreamNetwork(upstream.slot, this.upstreamTransit(details.address), failed);
+      await runtime.network.create(details.mtu);
+      const child = spawn('amneziawg-go', ['-f', upstream.interface], { stdio: ['ignore', 'ignore', 'ignore'] });
+      runtime.child = child;
+      child.on('error', () => failed('Unable to start upstream userspace daemon'));
+      child.on('exit', () => failed('Upstream userspace daemon exited'));
+      await this.waitForSocket(upstream.interface, child);
       const stripped = await this.stripUpstreamConfig(upstream, config);
       const syncFile = `/tmp/${upstream.interface}-setconf.conf`;
       await fsp.writeFile(syncFile, `${stripped}\n`, { mode: 0o600 });
-      try { run('awg', ['setconf', upstream.interface, syncFile]); } finally { await fsp.unlink(syncFile).catch(() => {}); }
-      run('ip', ['-4', 'address', 'add', details.address, 'dev', upstream.interface]);
-      run('ip', ['link', 'set', 'mtu', String(details.mtu), 'up', 'dev', upstream.interface]);
+      try {
+        try { run('awg', ['setconf', upstream.interface, syncFile]); }
+        catch (_) { throw new Error('Unable to apply upstream configuration; check its AWG parameters and listen port'); }
+      } finally { await fsp.unlink(syncFile).catch(() => {}); }
+      await runtime.network.attach(upstream.interface, details.address, details.mtu);
       const endpointOutput = run('awg', ['show', upstream.interface, 'endpoints']);
       runtime.endpoint = endpointOutput.split(/\s+/)[1] || details.parsed.Peer.Endpoint;
       runtime.listenPort = Number(run('awg', ['show', upstream.interface, 'listen-port']));
       runtime.status = 'up';
       runtime.address = details.address;
     } catch (error) {
-      runtime.stopping = true;
-      child.kill('SIGTERM');
-      tryRun('ip', ['link', 'delete', 'dev', upstream.interface]);
+      await this.stopUpstream(upstream);
       this.runtime.set(upstream.id, { status: 'error', error: error.message });
       throw error;
     }
   }
 
   async stopUpstream(upstream) {
+    if (this.failover?.health.has(upstream.id)) this.failover.record(upstream.id, { success: false, available: false });
     const runtime = this.runtime.get(upstream.id);
-    if (runtime?.child) {
-      runtime.stopping = true;
-      runtime.child.kill('SIGTERM');
-      await Promise.race([
-        new Promise((resolve) => runtime.child.once('exit', resolve)),
-        new Promise((resolve) => setTimeout(resolve, 1500)),
-      ]);
-      if (runtime.child.exitCode === null) runtime.child.kill('SIGKILL');
-    }
+    if (runtime) runtime.stopping = true;
+    tryRun('ip', ['-4', 'route', 'delete', 'default', 'metric', '10', 'table', String(upstream.table)]);
+    await stopProcess(runtime?.child);
+    await runtime?.network?.destroy();
     tryRun('ip', ['link', 'delete', 'dev', upstream.interface]);
     await fsp.unlink(`/var/run/amneziawg/${upstream.interface}.sock`).catch(() => {});
     this.runtime.set(upstream.id, { status: upstream.enabled ? 'error' : 'disabled', error: null });
@@ -394,9 +413,15 @@ class RoutingManager {
     const system = this.systemDirectNetworks();
     const declarations = activePolicies.map((policy) => `    ${this.policyNftSet(policy)}`).join('\n');
     const classification = activePolicies.map((policy) => `        ip daddr @${policySetName(policy)} meta mark set ${routeMark(policy.route, this.state)} ct mark set meta mark return`).join('\n');
-    const upstreamNat = Object.values(this.state.upstreams).flatMap((upstream) => this.downstreamNetworks.map((network) => `        ip saddr ${network} oifname ${shellNftString(upstream.interface)} masquerade`)).join('\n');
+    const upstreamNat = Object.values(this.state.upstreams).flatMap((upstream) => {
+      const network = this.runtime.get(upstream.id)?.network;
+      return network ? this.downstreamNetworks.map((source) => `        ip saddr ${source} oifname ${shellNftString(network.device)} snat ip to ${network.transit.router}`) : [];
+    }).join('\n');
     const inboundFilter = this.inboundInterfaces.map((interfaceName) => `iifname != ${shellNftString(interfaceName)}`).join(' ');
-    const enforce = this.inboundInterfaces.map((interfaceName) => `        iifname ${shellNftString(interfaceName)} meta mark ${BLOCK_MARK} reject with icmp type admin-prohibited`).join('\n');
+    const enforce = this.inboundInterfaces.flatMap((interfaceName) => [
+      `        iifname ${shellNftString(interfaceName)} meta mark ${BLOCK_MARK} reject with icmp type admin-prohibited`,
+      ...Array.from({ length: MAX_UPSTREAMS }, (_, slot) => `        iifname ${shellNftString(interfaceName)} meta mark 0x${(0x201 + slot).toString(16)} oifname != "av${slot}" reject with icmp type admin-prohibited`),
+    ]).join('\n');
     const dnsRedirect = this.inboundInterfaces.flatMap((interfaceName) => [
       `        iifname ${shellNftString(interfaceName)} udp dport 53 redirect to :53`,
       `        iifname ${shellNftString(interfaceName)} tcp dport 53 redirect to :53`,
@@ -412,8 +437,10 @@ class RoutingManager {
       `        ct mark != 0 return\n` +
       `        ip daddr @system_direct_v4 meta mark set ${DIRECT_MARK} ct mark set meta mark return\n` +
       `${classification ? `${classification}\n` : ''}` +
-      `        meta mark set ${routeMark(this.state.defaultRoute, this.state)}\n` +
-      `        ct mark set meta mark\n` +
+      `        jump default_route\n` +
+      `    }\n` +
+      `    chain default_route {\n` +
+      `        meta mark set ${routeMark(this.effectiveDefaultRoute(), this.state)} ct mark set meta mark\n` +
       `    }\n` +
       `    chain enforce {\n` +
       `        type filter hook forward priority -10; policy accept;\n` +
@@ -441,15 +468,23 @@ class RoutingManager {
   }
 
   async reconcile() {
-    this.removeRule(11000);
-    run('ip', ['-4', 'rule', 'add', 'priority', '11000', 'fwmark', `${DIRECT_MARK}/0xfff`, 'lookup', 'main']);
-    for (let slot = 0; slot < MAX_UPSTREAMS; slot += 1) this.removeRule(11100 + slot);
-    for (const upstream of Object.values(this.state.upstreams)) {
-      run('ip', ['-4', 'rule', 'add', 'priority', String(11100 + upstream.slot), 'fwmark', `${upstream.mark}/0xfff`, 'lookup', String(upstream.table)]);
-      tryRun('ip', ['-4', 'route', 'flush', 'table', String(upstream.table)]);
-      const runtime = this.runtime.get(upstream.id);
-      if (upstream.enabled && runtime?.status === 'up') run('ip', ['-4', 'route', 'add', 'default', 'dev', upstream.interface, 'table', String(upstream.table)]);
-      else run('ip', ['-4', 'route', 'add', 'prohibit', 'default', 'table', String(upstream.table)]);
+    const rules = JSON.parse(run('ip', ['-j', '-4', 'rule', 'show']));
+    const ensureRule = (priority, mark, table) => {
+      if (rules.some((rule) => rule.priority === priority && Number(rule.fwmark) === Number(mark)
+        && Number(rule.fwmask) === 0xfff && String(rule.table) === String(table))) return;
+      run('ip', ['-4', 'rule', 'add', 'priority', String(priority), 'fwmark', `${mark}/0xfff`, 'lookup', String(table)]);
+    };
+    ensureRule(11000, DIRECT_MARK, 'main');
+    for (let slot = 0; slot < MAX_UPSTREAMS; slot += 1) {
+      const table = String(201 + slot);
+      run('ip', ['-4', 'route', 'replace', 'prohibit', 'default', 'metric', '32760', 'table', table]);
+      ensureRule(11100 + slot, `0x${(0x201 + slot).toString(16)}`, table);
+      const upstream = Object.values(this.state.upstreams).find((item) => item.slot === slot);
+      const runtime = upstream && this.runtime.get(upstream.id);
+      if (upstream?.enabled && runtime?.status === 'up' && runtime.network?.available()) {
+        const { device, transit } = runtime.network;
+        run('ip', ['-4', 'route', 'replace', 'default', 'via', transit.tunnel, 'dev', device, 'metric', '10', 'table', table]);
+      } else tryRun('ip', ['-4', 'route', 'delete', 'default', 'metric', '10', 'table', table]);
     }
     const script = this.nftScript();
     const result = this.applyNftScript(script);
@@ -459,6 +494,172 @@ class RoutingManager {
         if (retry.status !== 0) throw new Error(`nft reconciliation failed: ${(retry.stderr || retry.stdout).trim()}`);
       } else throw new Error(`nft reconciliation failed: ${(result.stderr || result.stdout).trim()}`);
     }
+    this.appliedDefaultMark = routeMark(this.effectiveDefaultRoute(), this.state);
+  }
+
+  effectiveDefaultRoute() {
+    return this.failover ? this.failover.route((id) => this.state.upstreams[id]?.enabled && this.runtime.get(id)?.status === 'up') : this.state.defaultRoute;
+  }
+
+  failoverConfig() {
+    return { ...this.state.failover, candidates: failoverCandidates(this.state) };
+  }
+
+  resetFailover(preserveHealth = false) {
+    const previous = this.failover;
+    clearTimeout(this.failoverTimer);
+    this.failoverAbort?.abort();
+    this.failoverGeneration += 1;
+    this.failoverError = null;
+    this.failover = this.state.failover?.enabled
+      ? new FailoverState(this.failoverConfig(), this.state.defaultRoute.upstreamId, this.state.failoverSelectedUpstreamId) : null;
+    if (preserveHealth && previous && this.failover) {
+      const sameChecks = ['targets', 'failureThreshold', 'recoveryThreshold', 'intervalSeconds', 'timeoutSeconds']
+        .every((key) => JSON.stringify(previous.config[key]) === JSON.stringify(this.failover.config[key]));
+      for (const id of this.failover.ids) {
+        const health = previous.health.get(id);
+        if (health) this.failover.health.set(id, sameChecks ? { ...health }
+          : { ...health, healthy: health.healthy === false ? false : null, successes: 0, failures: 0 });
+      }
+      // Removing the selection must not send traffic through an untested replacement.
+      const selected = this.failover.health.get(this.failover.selectedId);
+      if (selected && this.failover.selectedId !== previous.selectedId && !this.failover.eligible(this.failover.selectedId)) selected.healthy = false;
+    }
+    if (this.failover && !this.stopping) this.scheduleFailover(0);
+  }
+
+  scheduleFailover(delayMs) {
+    const generation = this.failoverGeneration;
+    this.failoverTimer = setTimeout(() => {
+      const startedAt = Date.now();
+      this.failoverRun = this.checkFailover(generation).catch(() => {
+        if (generation === this.failoverGeneration) this.failoverError = 'Unable to apply failover routing; another check will retry.';
+      }).finally(() => {
+        if (!this.stopping && generation === this.failoverGeneration) {
+          this.scheduleFailover(Math.max(0, this.state.failover.intervalSeconds * 1000 - (Date.now() - startedAt)));
+        }
+      });
+    }, delayMs);
+    this.failoverTimer.unref();
+  }
+
+  async checkFailover(generation) {
+    if (this.stopping || generation !== this.failoverGeneration || !this.failover) return;
+    const controller = new AbortController();
+    this.failoverAbort = controller;
+    const samples = await Promise.all(this.failover.ids.map(async (id) => {
+      const upstream = this.state.upstreams[id];
+      const runtime = this.runtime.get(id);
+      const available = Boolean(upstream?.enabled && runtime?.status === 'up' && runtime.network?.available());
+      const result = available ? await probeUpstream(upstream, this.state.failover, this.dnsUpstream, controller.signal, runtime.network)
+        : { success: false, available: false };
+      return { id, runtime, available, result, checkedAt: Date.now() };
+    }));
+    await this.enqueue(async () => {
+      if (this.stopping || controller.signal.aborted || generation !== this.failoverGeneration) return;
+      // Never treat an old interface's result or a delayed queued sample as proof of health.
+      for (const { id, runtime, available, result, checkedAt } of samples) {
+        if (this.runtime.get(id) !== runtime || available !== Boolean(this.state.upstreams[id]?.enabled && runtime?.status === 'up')) {
+          this.failover.record(id, { success: false, available: false });
+        } else if (Date.now() - checkedAt <= this.failover.maxAgeMs) this.failover.record(id, result, checkedAt);
+      }
+      const previousId = this.failover.selectedId;
+      this.failover.choose();
+      await this.applyFailoverSelection(previousId);
+      this.failoverError = null;
+    });
+  }
+
+  async applyFailoverSelection(previousId) {
+    const previousSavedId = this.state.failoverSelectedUpstreamId;
+    const changed = previousId !== this.failover.selectedId;
+    try {
+      if (changed) {
+        this.state.failoverSelectedUpstreamId = this.failover.selectedId;
+        await this.save();
+      }
+      this.applyDefaultRoute();
+      if (changed) this.failoverLastSwitchAt = new Date().toISOString();
+    } catch (error) {
+      this.failover.selectedId = previousId;
+      if (changed) {
+        this.state.failoverSelectedUpstreamId = previousSavedId;
+        await this.save();
+      }
+      throw error;
+    }
+  }
+
+  applyDefaultRoute() {
+    const mark = routeMark(this.effectiveDefaultRoute(), this.state);
+    if (mark === this.appliedDefaultMark) return;
+    // Priority edits and switches preserve learned DNS sets and connection marks.
+    const result = this.applyNftScript(`flush chain ${NFT_FAMILY} ${NFT_TABLE} default_route\nadd rule ${NFT_FAMILY} ${NFT_TABLE} default_route meta mark set ${mark} ct mark set meta mark\n`);
+    if (result.status !== 0) throw new Error('Unable to update the default route');
+    this.appliedDefaultMark = mark;
+  }
+
+  async saveFailoverConfig(config) {
+    const previous = this.state;
+    const previousMonitor = this.failover;
+    this.state = withFailoverConfig(this.state, config);
+    this.state.failoverSelectedUpstreamId = new FailoverState(config, this.state.defaultRoute.upstreamId,
+      previous.failover?.enabled ? previousMonitor?.selectedId ?? previous.failoverSelectedUpstreamId : undefined).selectedId || null;
+    try { await this.save(); }
+    catch (error) { this.state = previous; throw error; }
+    this.resetFailover(true);
+    try { this.applyDefaultRoute(); }
+    catch (error) {
+      this.state = previous;
+      await this.save();
+      this.failover = previousMonitor;
+      this.resetFailover(true);
+      throw error;
+    }
+  }
+
+  async setFailover(input) {
+    return this.enqueue(async () => {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) throw httpError('Failover settings must be an object');
+      const merged = { ...this.failoverConfig(), ...input };
+      if (Object.hasOwn(input, 'backupUpstreamId') && !Object.hasOwn(input, 'candidates')) delete merged.candidates;
+      const config = normalizeFailover(merged, this.state);
+      await this.saveFailoverConfig(config);
+    });
+  }
+
+  async setUpstreamPriority(id, value) {
+    return this.enqueue(async () => {
+      if (!Object.hasOwn(this.state.upstreams, id)) throw httpError('Upstream not found', 404);
+      const priority = failoverPriority(value);
+      const candidates = failoverCandidates(this.state).filter((candidate) => candidate.upstreamId !== id);
+      if (priority !== null) candidates.push({ upstreamId: id, priority });
+      const config = normalizeFailover({ ...this.state.failover, candidates }, this.state);
+      await this.saveFailoverConfig(config);
+    });
+  }
+
+  async exportUpstreamConfig(id) {
+    return this.enqueue(async () => {
+      const upstream = this.state.upstreams[id];
+      if (!upstream) throw httpError('Upstream not found', 404);
+      const config = await fsp.readFile(this.configPath(id), 'utf8');
+      return withPriorityComment(config, upstream.failoverPriority);
+    });
+  }
+
+  preferredFailoverCandidates() {
+    return this.failover?.preferredCandidates(Date.now(), (id) => this.state.upstreams[id]?.enabled && this.runtime.get(id)?.status === 'up') || [];
+  }
+
+  async returnToPreferred() {
+    return this.enqueue(async () => {
+      const candidates = this.preferredFailoverCandidates();
+      if (!candidates.length) throw httpError('A higher-priority upstream must pass fresh recovery checks before switching back', 409);
+      const previousId = this.failover.selectedId;
+      this.failover.selectedId = this.failover.pick(candidates);
+      await this.applyFailoverSelection(previousId);
+    });
   }
 
   matchingDomainPolicy(domain) {
@@ -479,29 +680,34 @@ class RoutingManager {
     });
   }
 
-  async addUpstream({ name, config, listenPort: requestedPort }) {
+  async addUpstream({ name, config, listenPort: requestedPort, failoverPriority: requestedPriority }) {
     return this.enqueue(async () => {
       const cleanName = String(name || '').trim();
       if (!cleanName || cleanName.length > 64) throw httpError('Upstream name must contain 1-64 characters');
       if (Object.values(this.state.upstreams).some((item) => item.name.toLowerCase() === cleanName.toLowerCase())) throw httpError('Upstream name already exists', 409);
       // Validate the original first so malformed/secret input is never rewritten blindly.
       this.validateUpstreamConfig(config);
+      const importedPriority = priorityFromConfig(config);
+      const priority = requestedPriority === undefined ? importedPriority : failoverPriority(requestedPriority);
       if (requestedPort !== undefined) config = withListenPort(config, this.validatePublishedPort(requestedPort));
       const details = this.validateUpstreamConfig(config);
-      this.assertUpstreamAddressAvailable(details.address);
       this.assertUpstreamPortAvailable(details.listenPort);
       await this.validateWithAwgQuick(config);
       const slot = this.allocateSlot();
       const id = crypto.randomUUID();
-      const upstream = { id, name: cleanName, protocol: details.protocol, enabled: true, slot, interface: `au${slot}`, table: 201 + slot, mark: `0x${(0x201 + slot).toString(16)}`, createdAt: new Date().toISOString() };
+      const upstream = { id, name: cleanName, protocol: details.protocol, enabled: true, failoverPriority: priority, slot, interface: `au${slot}`, table: 201 + slot, mark: `0x${(0x201 + slot).toString(16)}`, createdAt: new Date().toISOString() };
       await atomicWrite(this.configPath(id), config.endsWith('\n') ? config : `${config}\n`);
       this.state.upstreams[id] = upstream;
       await this.save();
       try {
         await this.startUpstream(upstream);
+        this.resetFailover(true);
         await this.reconcile();
       } catch (error) {
+        await this.stopUpstream(upstream);
         delete this.state.upstreams[id];
+        this.runtime.delete(id);
+        this.resetFailover(true);
         await this.save();
         await fsp.unlink(this.configPath(id)).catch(() => {});
         await this.reconcile();
@@ -533,6 +739,7 @@ class RoutingManager {
       const upstream = this.state.upstreams[id];
       if (!upstream) throw httpError('Upstream not found', 404);
       if (this.state.defaultRoute.type === 'upstream' && this.state.defaultRoute.upstreamId === id) throw httpError('Upstream is used by the default route', 409);
+      if (upstream.failoverPriority != null) throw httpError('Clear this upstream’s failover priority before deleting it', 409);
       if (Object.values(this.state.policies).some((policy) => policy.route.type === 'upstream' && policy.route.upstreamId === id)) throw httpError('Upstream is used by a routing policy', 409);
       await this.stopUpstream(upstream);
       delete this.state.upstreams[id];
@@ -597,14 +804,20 @@ class RoutingManager {
 
   async setDefaultRoute(route) {
     return this.enqueue(async () => {
-      this.state.defaultRoute = validateRoute(route, this.state);
+      const next = validateRoute(route, this.state);
+      if (this.state.failover?.enabled && next.type !== 'upstream') throw httpError('Disable failover before choosing Direct or Blocked as the default route');
+      normalizeFailover(this.failoverConfig(), { ...this.state, defaultRoute: next });
+      this.state.defaultRoute = next;
+      this.state.failoverSelectedUpstreamId = next.upstreamId || null;
       await this.save();
+      this.resetFailover(true);
       await this.reconcile();
     });
   }
 
   upstreamStats(upstream) {
-    const runtime = this.runtime.get(upstream.id) || { status: upstream.enabled ? 'down' : 'disabled' };
+    let runtime = this.runtime.get(upstream.id) || { status: upstream.enabled ? 'down' : 'disabled' };
+    if (runtime.status === 'up' && !runtime.network?.available()) runtime = { ...runtime, status: 'error', error: 'Upstream namespace link is unavailable' };
     let stats = { latestHandshakeAt: null, transferRx: 0, transferTx: 0, persistentKeepalive: 0 };
     let readable = false;
     let configuredListenPort = null;
@@ -636,6 +849,10 @@ class RoutingManager {
   snapshot() {
     return {
       defaultRoute: this.state.defaultRoute,
+      effectiveDefaultRoute: this.effectiveDefaultRoute(),
+      failover: { config: this.failoverConfig(), selectedUpstreamId: this.failover?.selectedId || null,
+        preferredUpstreamIds: this.preferredFailoverCandidates(),
+        health: this.failover?.snapshot() || {}, lastSwitchAt: this.failoverLastSwitchAt, error: this.failoverError },
       publishedUpstreamPorts: this.upstreamPorts,
       upstreams: Object.values(this.state.upstreams).map((item) => this.upstreamStats(item)).sort((a, b) => a.slot - b.slot),
       policies: Object.values(this.state.policies).sort((a, b) => a.priority - b.priority),
@@ -643,9 +860,24 @@ class RoutingManager {
     };
   }
 
+  blockDownstreamForwarding() {
+    const guard = this.applyNftScript(`add table inet awg_chain_startup\nadd chain inet awg_chain_startup forward { type filter hook forward priority -20; policy accept; }\nflush chain inet awg_chain_startup forward\n` +
+      this.inboundInterfaces.map((name) => `add rule inet awg_chain_startup forward iifname ${shellNftString(name)} drop\n`).join(''));
+    if (guard.status !== 0) throw new Error('Unable to guard downstream forwarding during routing initialization or shutdown');
+  }
+
   async shutdown() {
     this.stopping = true;
-    for (const upstream of Object.values(this.state.upstreams)) await this.stopUpstream(upstream);
+    const errors = [];
+    try { this.blockDownstreamForwarding(); } catch (error) { errors.push(error); }
+    clearTimeout(this.failoverTimer);
+    this.failoverAbort?.abort();
+    await this.failoverRun?.catch(() => {});
+    await this.operation;
+    for (const upstream of Object.values(this.state.upstreams)) {
+      try { await this.stopUpstream(upstream); } catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw new Error('Routing shutdown could not complete; forwarding guards were retained');
     tryRun('nft', ['delete', 'table', NFT_FAMILY, NFT_TABLE]);
     this.removeRule(11000);
     for (let slot = 0; slot < MAX_UPSTREAMS; slot += 1) {

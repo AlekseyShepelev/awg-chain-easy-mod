@@ -6,13 +6,19 @@ const elements = Object.fromEntries([
   'create-error', 'page-message', 'endpoint-value', 'client-count', 'connected-count', 'amneziawg-version',
   'client-rows', 'empty-state', 'empty-create-button', 'refresh-button', 'last-updated',
   'qr-dialog', 'qr-title', 'qr-image', 'close-qr-button',
+  'config-dialog', 'config-title', 'config-text', 'config-loading', 'config-error', 'close-config-button',
   'peer-connection-dialog', 'peer-connection-title', 'close-peer-connection', 'peer-connection-form',
   'peer-connection-enabled', 'peer-connection-fields', 'peer-connection-endpoint', 'peer-connection-keepalive', 'peer-connection-error',
   'upstream-listen-port', 'upstream-port-hint', 'upstream-port-dialog', 'upstream-port-title',
   'close-upstream-port', 'upstream-port-form', 'upstream-port-value', 'upstream-port-range', 'upstream-port-error',
+  'upstream-priority-dialog', 'upstream-priority-title', 'close-upstream-priority',
+  'upstream-priority-form', 'upstream-priority-value', 'upstream-priority-error',
   'primary-nav', 'clients-page', 'routing-page', 'new-upstream-button', 'new-policy-button',
   'dns-status', 'dns-upstream', 'upstream-count', 'policy-count',
   'default-route-form', 'default-route', 'default-route-error',
+  'failover-status', 'failover-health', 'failover-health-table', 'failover-runtime-error', 'failover-settings', 'failover-form',
+  'failover-enabled', 'failover-interval', 'failover-timeout', 'failover-failures',
+  'failover-recovery', 'failover-targets', 'failover-auto-return', 'failover-error', 'failover-return',
   'upstream-create-panel', 'cancel-upstream-button', 'upstream-form', 'upstream-name',
   'upstream-file', 'upstream-config', 'upstream-error', 'upstream-rows', 'upstream-empty',
   'policy-create-panel', 'cancel-policy-button', 'policy-form', 'policy-name',
@@ -21,10 +27,14 @@ const elements = Object.fromEntries([
 ].map((id) => [id, document.getElementById(id)]));
 
 let refreshTimer;
+let configViewController = null;
 let editingPolicyId = null;
 let editingPeerId = null;
 let editingUpstreamId = null;
+let editingPriorityUpstreamId = null;
 let publishedUpstreamPorts = [];
+let failoverFormDirty = false;
+let defaultRouteDirty = false;
 
 async function request(url, options = {}) {
   const response = await fetch(url, {
@@ -43,6 +53,8 @@ async function request(url, options = {}) {
 
 function showLogin() {
   clearInterval(refreshTimer);
+  failoverFormDirty = false;
+  defaultRouteDirty = false;
   elements['app-view'].hidden = true;
   elements['logout-button'].hidden = true;
   elements['primary-nav'].hidden = true;
@@ -176,6 +188,15 @@ function openUpstreamPort(upstream) {
   elements['upstream-port-dialog'].showModal();
 }
 
+function openUpstreamPriority(upstream) {
+  editingPriorityUpstreamId = upstream.id;
+  elements['upstream-priority-title'].textContent = `Failover priority: ${upstream.name}`;
+  elements['upstream-priority-value'].value = upstream.failoverPriority ?? '';
+  elements['upstream-priority-error'].textContent = '';
+  elements['upstream-priority-dialog'].showModal();
+  elements['upstream-priority-value'].focus();
+}
+
 function renderUpstreams(upstreams) {
   elements['upstream-rows'].replaceChildren();
   elements['upstream-empty'].hidden = upstreams.length !== 0;
@@ -183,6 +204,10 @@ function renderUpstreams(upstreams) {
     const actions = document.createElement('div');
     actions.className = 'row-actions';
     actions.append(button('Port', 'secondary', () => openUpstreamPort(upstream)));
+    const download = document.createElement('a');
+    download.className = 'button secondary compact'; download.textContent = 'Download';
+    download.href = `/api/routing/upstreams/${upstream.id}/configuration`;
+    actions.append(download);
     actions.append(button(upstream.enabled ? 'Disable' : 'Enable', 'secondary', async () => {
       try {
         await request(`/api/routing/upstreams/${upstream.id}/${upstream.enabled ? 'disable' : 'enable'}`, { method: 'POST' });
@@ -214,9 +239,12 @@ function renderUpstreams(upstreams) {
     portValue.textContent = `Local UDP ${upstream.listenPort || '—'}${upstream.configuredListenPort ? ' · fixed' : ' · automatic'}`;
     if (upstream.configuredListenPort && !upstream.portInPublishedRange) portValue.textContent += ' · outside published range';
     endpointInfo.append(endpointValue, portValue);
+    const priority = button(upstream.failoverPriority == null ? 'Excluded' : String(upstream.failoverPriority), 'secondary', () => openUpstreamPriority(upstream));
+    priority.setAttribute('aria-label', `Edit failover priority for ${upstream.name}`);
     const row = document.createElement('tr');
     row.append(
       cell('Name', upstream.name, 'client-name'),
+      cell('Failover priority', priority, 'numeric'),
       cell('Interface', interfaceInfo),
       cell('Endpoint', endpointInfo),
       cell('Connection', upstreamConnectionBadge(upstream)),
@@ -268,10 +296,57 @@ function renderRouting(routing) {
   elements['dns-upstream'].textContent = routing.dns.upstream;
   elements['upstream-count'].textContent = routing.upstreams.length;
   elements['policy-count'].textContent = routing.policies.length;
-  updateRouteSelect(elements['default-route'], routing.upstreams, routeValue(routing.defaultRoute));
+  updateRouteSelect(elements['default-route'], routing.upstreams, defaultRouteDirty ? undefined : routeValue(routing.defaultRoute));
   updateRouteSelect(elements['policy-route'], routing.upstreams);
   renderUpstreams(routing.upstreams);
   renderPolicies(routing.policies, routing.upstreams);
+  renderFailover(routing);
+}
+
+function renderFailover(routing) {
+  if (!routing.failover) return;
+  const { config, health, selectedUpstreamId, preferredUpstreamIds, error } = routing.failover;
+  const candidates = routing.upstreams.filter((upstream) => upstream.failoverPriority != null)
+    .map((upstream) => ({ upstreamId: upstream.id, priority: upstream.failoverPriority }));
+  const name = (id) => routing.upstreams.find((item) => item.id === id)?.name || 'Not selected';
+  const effective = routing.effectiveDefaultRoute;
+  elements['failover-status'].textContent = !config.enabled ? 'Disabled'
+    : effective?.type === 'blocked' ? 'Traffic blocked — no usable selected upstream'
+      : `Using ${name(selectedUpstreamId)} · priority ${candidates.find((item) => item.upstreamId === selectedUpstreamId)?.priority}`;
+  elements['failover-health-table'].hidden = !config.enabled;
+  elements['failover-health'].replaceChildren();
+  const checkTime = (value) => {
+    if (!value) return 'Not yet checked';
+    const time = document.createElement('time');
+    time.dateTime = value; time.title = new Date(value).toLocaleString();
+    time.textContent = new Date(value).toLocaleTimeString();
+    return time;
+  };
+  for (const { upstreamId, priority } of candidates.sort((a, b) => a.priority - b.priority)) {
+    const sample = health[upstreamId];
+    const status = sample?.status || 'checking';
+    const retrying = status === 'healthy' && sample.failures > 0;
+    const label = retrying ? `Retrying (${sample.failures}/${config.failureThreshold})`
+      : status === 'checking' ? `Checking (${sample?.successes || 0}/${config.recoveryThreshold})` : status[0].toUpperCase() + status.slice(1);
+    const tone = status === 'healthy' && !retrying ? 'running' : ['unavailable', 'unhealthy'].includes(status) ? 'failed' : 'warning';
+    const row = document.createElement('tr');
+    row.append(cell('Upstream', `${name(upstreamId)}${selectedUpstreamId === upstreamId ? ' (selected)' : ''}`, 'client-name'),
+      cell('Failover priority', String(priority), 'numeric'), cell('Health', stateBadge(label, tone)),
+      cell('Last checked', checkTime(sample?.checkedAt)), cell('Last successful check', sample?.lastSuccessAt ? checkTime(sample.lastSuccessAt) : 'Never succeeded'));
+    elements['failover-health'].append(row);
+  }
+  elements['failover-runtime-error'].textContent = error || '';
+  elements['failover-runtime-error'].hidden = !error;
+  const selectedPriority = candidates.find((item) => item.upstreamId === selectedUpstreamId)?.priority;
+  elements['failover-return'].hidden = !config.enabled || !candidates.some((item) => item.priority < selectedPriority);
+  elements['failover-return'].disabled = !preferredUpstreamIds?.length;
+  if (failoverFormDirty) return;
+  elements['failover-enabled'].checked = config.enabled;
+  elements['failover-auto-return'].checked = config.autoFailback;
+  for (const [id, key] of [['interval', 'intervalSeconds'], ['timeout', 'timeoutSeconds'], ['failures', 'failureThreshold'], ['recovery', 'recoveryThreshold']]) {
+    elements[`failover-${id}`].value = config[key];
+  }
+  elements['failover-targets'].value = config.targets.join('\n');
 }
 
 function updatePeerConnectionFields() {
@@ -294,6 +369,34 @@ function openPeerConnection(client) {
   elements['peer-connection-dialog'].showModal();
 }
 
+async function openClientConfig(client) {
+  configViewController?.abort();
+  const controller = new AbortController();
+  configViewController = controller;
+  elements['config-title'].textContent = `Config: ${client.name}`;
+  elements['config-text'].value = '';
+  elements['config-text'].hidden = true;
+  elements['config-error'].textContent = '';
+  elements['config-loading'].hidden = false;
+  elements['config-dialog'].showModal();
+  try {
+    const config = await request(`/api/wireguard/client/${client.id}/configuration`, {
+      signal: controller.signal, cache: 'no-store',
+    });
+    if (!controller.signal.aborted && elements['config-dialog'].open) {
+      elements['config-text'].value = config;
+      elements['config-text'].hidden = false;
+    }
+  } catch (error) {
+    if (!controller.signal.aborted && elements['config-dialog'].open) elements['config-error'].textContent = error.message;
+  } finally {
+    if (configViewController === controller) {
+      elements['config-loading'].hidden = true;
+      configViewController = null;
+    }
+  }
+}
+
 function renderClients(clients) {
   elements['client-rows'].replaceChildren();
   elements['empty-state'].hidden = clients.length !== 0;
@@ -314,6 +417,7 @@ function renderClients(clients) {
     download.textContent = 'Download';
     download.href = `/api/wireguard/client/${client.id}/configuration`;
     actions.append(button('Connection', 'secondary', () => openPeerConnection(client)));
+    actions.append(button('View', 'secondary', () => openClientConfig(client)));
     actions.append(download);
     actions.append(button('QR', 'secondary', () => {
       elements['qr-title'].textContent = `QR code: ${client.name}`;
@@ -467,6 +571,16 @@ elements['upstream-form'].addEventListener('submit', async (event) => {
   } catch (error) { elements['upstream-error'].textContent = error.message; }
 });
 
+elements['close-config-button'].addEventListener('click', () => elements['config-dialog'].close());
+elements['config-dialog'].addEventListener('close', () => {
+  configViewController?.abort();
+  configViewController = null;
+  elements['config-text'].value = '';
+  elements['config-text'].hidden = true;
+  elements['config-loading'].hidden = true;
+  elements['config-error'].textContent = '';
+});
+
 elements['close-peer-connection'].addEventListener('click', () => elements['peer-connection-dialog'].close());
 elements['peer-connection-enabled'].addEventListener('change', updatePeerConnectionFields);
 elements['peer-connection-dialog'].addEventListener('close', () => { editingPeerId = null; });
@@ -496,6 +610,21 @@ elements['upstream-port-form'].addEventListener('submit', async (event) => {
   } catch (error) { elements['upstream-port-error'].textContent = error.message; }
 });
 
+elements['close-upstream-priority'].addEventListener('click', () => elements['upstream-priority-dialog'].close());
+elements['upstream-priority-dialog'].addEventListener('close', () => { editingPriorityUpstreamId = null; });
+elements['upstream-priority-form'].addEventListener('submit', async (event) => {
+  event.preventDefault();
+  elements['upstream-priority-error'].textContent = '';
+  const value = elements['upstream-priority-value'].value;
+  try {
+    await request(`/api/routing/upstreams/${editingPriorityUpstreamId}/failover-priority`, {
+      method: 'PUT', body: JSON.stringify({ failoverPriority: value === '' ? null : Number(value) }),
+    });
+    elements['upstream-priority-dialog'].close();
+    await refresh();
+  } catch (error) { elements['upstream-priority-error'].textContent = error.message; }
+});
+
 elements['new-policy-button'].addEventListener('click', () => openPolicyEditor());
 elements['cancel-policy-button'].addEventListener('click', () => {
   elements['policy-create-panel'].hidden = true;
@@ -521,6 +650,7 @@ elements['policy-form'].addEventListener('submit', async (event) => {
   } catch (error) { elements['policy-error'].textContent = error.message; }
 });
 
+elements['default-route'].addEventListener('change', () => { defaultRouteDirty = true; });
 elements['default-route-form'].addEventListener('submit', async (event) => {
   event.preventDefault();
   elements['default-route-error'].textContent = '';
@@ -529,8 +659,36 @@ elements['default-route-form'].addEventListener('submit', async (event) => {
       method: 'PUT',
       body: JSON.stringify({ route: routeFromValue(elements['default-route'].value) }),
     });
+    defaultRouteDirty = false;
     await refresh();
   } catch (error) { elements['default-route-error'].textContent = error.message; }
+});
+
+elements['failover-form'].addEventListener('input', () => { failoverFormDirty = true; });
+elements['failover-form'].addEventListener('change', () => { failoverFormDirty = true; });
+elements['failover-form'].addEventListener('submit', async (event) => {
+  event.preventDefault();
+  elements['failover-error'].textContent = '';
+  try {
+    await request('/api/routing/failover', {
+      method: 'PUT', body: JSON.stringify({
+        enabled: elements['failover-enabled'].checked,
+        intervalSeconds: Number(elements['failover-interval'].value),
+        timeoutSeconds: Number(elements['failover-timeout'].value),
+        failureThreshold: Number(elements['failover-failures'].value),
+        recoveryThreshold: Number(elements['failover-recovery'].value),
+        autoFailback: elements['failover-auto-return'].checked,
+        targets: elements['failover-targets'].value.split('\n').map((item) => item.trim()).filter(Boolean),
+      }),
+    });
+    failoverFormDirty = false;
+    elements['failover-settings'].open = false;
+    await refresh();
+  } catch (error) { elements['failover-error'].textContent = error.message; }
+});
+elements['failover-return'].addEventListener('click', async () => {
+  try { await request('/api/routing/failover/preferred', { method: 'POST' }); await refresh(); }
+  catch (error) { showMessage(error.message); }
 });
 
 request('/api/session')

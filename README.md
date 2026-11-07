@@ -14,15 +14,16 @@ Existing AWG3 profiles continue to use their current settings; the optional
 ## Features
 
 - Create, enable, disable, and delete clients in the Web UI.
-- Create and download AWG3, AWG2, or native WireGuard profiles and display configuration QR codes.
+- Create, view, and download AWG3, AWG2, or native WireGuard profiles and display configuration QR codes.
 - Show latest handshake, endpoint, and transfer counters.
 - Show the running container's AmneziaWG server image version in the Web UI.
 - Import up to eight third-party AWG 3 or legacy AWG client configs as upstream
   tunnels.
 - Route by domain or IPv4 CIDR to an upstream, directly to the server uplink,
   or to a fail-closed blocked destination.
-- Keep each upstream in a separate interface and policy-routing table.
+- Isolate each upstream in its own network namespace, supporting duplicate tunnel addresses.
 - Persist fixed upstream UDP ports and configure reverse initiation per server peer.
+- Configure priority-based failover across multiple upstreams using HTTPS checks through each tunnel.
 - Distinguish a running upstream interface from a recent peer handshake.
 - Persist `wg0.json`, all generated server configs, keys, and exported profiles under `server/config`.
 - Synchronize peer changes without restarting the tunnel.
@@ -126,11 +127,22 @@ hostname. If an enabled upstream is unavailable, its routing table contains a
 `prohibit default`; matching traffic fails closed instead of escaping through
 the server's normal uplink.
 
-Imported upstream interface addresses are reserved even while the upstream is
-disabled. New clients skip those addresses. Imports that reuse a server,
-client, or another upstream's interface address are rejected. When chaining
-servers, keep their interface addresses distinct; an existing collision must
-be corrected on both ends of the affected link before it can start.
+Each imported upstream runs in its own network namespace. Its tunnel address
+may match a local server, client, or another upstream. Imported profiles and
+existing client profiles remain unchanged. Local clients still receive unique
+addresses within their own pools. The application allocates separate internal
+transit subnets automatically and translates traffic across the namespace boundary.
+
+Upstream UDP listeners remain in the main container, preserving published ports
+and reverse initiation. Fixed UDP ports must still be distinct. Docker Compose
+grants `SYS_ADMIN` alongside `NET_ADMIN` for namespace creation; privileged mode
+is not required. New namespaces must have IPv4 forwarding enabled on the Docker
+host; an upstream fails to start with a clear error when that prerequisite is missing.
+Forwarding is blocked during startup and teardown until safe routing is installed.
+
+Existing saved upstreams move into namespaces on restart without a persistent
+schema change. After importing overlapping addresses, rolling back to an older
+image can make those upstreams fail its former address-conflict checks.
 
 Domain rules are implemented by the container's DNS proxy. Client UDP and TCP
 port 53 traffic is redirected to it, even if an external resolver is present
@@ -151,6 +163,100 @@ Important limitations:
 
 The default `WG_DEFAULT_DNS=auto` writes the AWG server tunnel address into new
 client profiles. `DNS_UPSTREAM` selects the IPv4 resolver used by the proxy.
+
+## Default-route failover
+
+In **Routing**, select and save an upstream as the **Default route**. In the
+**Upstream tunnels** table, click its **Failover priority** value (or **Excluded**)
+to edit it. Give at least two upstreams a priority, including the saved default,
+and enable their tunnels. A blank priority excludes an upstream from failover.
+Then open **Configure failover** and enable automatic failover. Check intervals,
+thresholds, targets, and automatic return are shared settings. Up to eight
+candidates are supported. Existing installations without failover stay disabled.
+Existing priority lists migrate to each upstream’s metadata; older primary/backup
+settings become priorities 10 and 20. Selection and automatic-return mode are
+preserved. Destination policies keep their explicit routes and separate priorities.
+
+Lower numbers are preferred. For example, A=10, B=20, C=20, D=30 uses A first.
+If A fails, either healthy B or C is chosen at random. That choice remains in
+use while it works; equal-priority recovery never triggers a switch. If both B
+and C fail, healthy D takes over. This selects one exit for new default-route
+connections, rather than distributing connections across the group.
+
+| Setting | Default | Allowed values |
+| --- | --- | --- |
+| Failover priority (per upstream) | Excluded unless imported or already configured | 1–10000; equal values allowed; blank excludes |
+| Check interval | 10 seconds | 5–300 seconds |
+| Probe timeout | 5 seconds | 1–30 seconds, no longer than the interval |
+| Failures before switching | 3 | 1–20 consecutive failed checks |
+| Successes before recovery | 3 | 1–20 consecutive successful checks |
+| Automatically return to a higher priority | Off | On or off |
+| HTTPS health-check URLs | Cloudflare trace and Google connectivity check | 1–3 HTTPS URLs |
+
+All candidates are checked concurrently. Each check probes all configured URLs
+with one shared timeout; any HTTPS 2xx response passes. TLS certificates are
+verified, redirects are rejected, and proxies are not used. IPv4 HTTPS and DNS
+probe sockets run inside that upstream's namespace and are bound to its interface
+and routing mark, so a broken tunnel cannot pass a check through the server's
+normal uplink. Hostnames
+use `DNS_UPSTREAM` through the tested tunnel. Select targets reachable through
+all exits; failure of every target is treated as failure of the upstream.
+
+The selected upstream remains in use during transient failures. After the
+failure threshold, the selector chooses from the lowest-numbered group of
+eligible candidates. A replacement must have passed its recovery checks and
+its latest check must be successful and recent: no older than twice the check
+interval plus the probe timeout. Stale results require a fresh recovery streak.
+The health table shows each candidate's last check and last successful check.
+If the selection is unusable and no replacement qualifies, new default-route
+traffic is blocked instead of going directly to the Internet. Disabled or
+stopped upstreams are unavailable; they must pass recovery checks after being
+started again. Failed upstream processes are not automatically restarted.
+
+With automatic return off, a working upstream stays selected until it fails or
+**Use higher priority** is clicked. That button selects an eligible upstream
+from the best available group with a lower number than the current selection.
+Automatic return performs the same switch after recovery, including between
+backup groups. Neither mode switches solely because an equal-priority candidate
+recovers. On first activation, the lowest-numbered group is selected, preferring
+the saved default when it belongs to that group. A persisted selection survives
+service restarts; fresh checks start immediately, initially using that selection
+if its interface is running.
+
+Switches apply to **new connections**. Existing connection marks and learned DNS
+sets remain intact; connections using a failed exit may need to reconnect because
+the public IP changes. Changing the saved default explicitly resets the selected
+upstream; while failover is enabled it must be an included candidate. Disable
+failover before choosing Direct or Blocked as the default. Clear an upstream’s
+failover priority before deleting it, even when failover is disabled. While
+failover is enabled, edits must keep at least two candidates and include the
+saved default.
+Changing probe settings requires fresh recovery checks before candidates can
+be chosen as replacements; a working selection continues during revalidation.
+Editing priorities or automatic return keeps their health history. Priority
+edits keep tunnels running and preserve learned DNS entries and connection marks.
+
+### Portable upstream priorities
+
+Upstream **Download** exports the imported VPN configuration with its current
+priority as an optional comment:
+
+```ini
+# FailoverPriority = 20
+[Interface]
+# ...existing VPN settings...
+```
+
+Importing that file restores its priority. A file without this comment is excluded
+from failover by default. Excluded downloads omit the comment. The app accepts one
+priority comment per file; malformed, duplicate, or out-of-range values are
+rejected. The VPN runtime ignores the comment.
+
+The source of truth is `upstreams[id].failoverPriority` in `routing.json`
+(`null` means excluded). Priority edits do not rewrite the original imported
+profile; **Download** writes the current metadata value into the exported file
+and preserves all VPN settings. Editing a comment in a stored file directly does
+not update metadata. Global failover settings no longer persist a candidate list.
 
 ## Stable upstream ports and reverse initiation
 
@@ -270,10 +376,33 @@ the `3.1.20260828` image still reports `0.0.20250522`.
 ## Regression checks
 
 Run `bash server/test/run.sh` from the repository root. It builds the image
-and tests client allocation and upstream collisions through the live API in
+and tests client allocation and overlapping upstream addresses through the live API in
 an isolated container. Docker access and `/dev/net/tun` are required; production
 state is not mounted. Pass an existing image tag as the first argument to test
 that image without rebuilding it.
 
 Run `node --test server/test/connection-settings.test.js` for port, reverse-peer,
 and connection-state validation without Docker.
+
+Run `node --test server/test/failover.test.js` for failover validation and selection
+tests. `bash server/test/run.sh [image-tag]` also tests failure/recovery, manual and
+automatic return, policy/DNS-set preservation, and kernel default-route updates in
+an isolated container. Probe tests use `go test server/probe/main.go
+server/probe/main_test.go`; the socket-isolation test requires root with NET_ADMIN
+and should run in an isolated container. The Docker build compiles the Go probe
+using only the standard library and includes CA certificates for HTTPS checks.
+
+Run `node --test server/test/upstream-network.test.js` for transit allocation and
+missing-namespace checks. To exercise the production routing manager with a real
+AWG3 client, two exits sharing the client's address, verified HTTPS/DNS probes,
+reverse initiation, outages, rollback, and restart cleanup:
+
+```sh
+bash server/test/namespace-proof/run.sh IMAGE_TAG /tests/namespace-routing.test.js
+```
+
+This suite uses a disposable container with no external network or published
+ports. Docker and host OpenSSL are required. Test profiles and certificates are
+generated temporarily and removed afterward. See
+[`server/test/namespace-proof/README.md`](server/test/namespace-proof/README.md)
+for the original proof topology and the integration test mode.
