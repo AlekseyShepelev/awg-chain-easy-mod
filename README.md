@@ -58,6 +58,24 @@ reverse proxy in front of the loopback listener. Setting
 `WEBUI_BIND_ADDRESS=0.0.0.0` exposes the plain HTTP login directly and is not
 recommended.
 
+For an HTTPS reverse proxy, set `WEBUI_HTTPS=true`. Login and logout cookies then
+include `Secure`, and responses include HSTS. Keep it `false` for the documented
+HTTP-over-SSH setup. The proxy must serve HTTPS and redirect public HTTP to HTTPS;
+this setting does not add TLS to the Node listener.
+
+If the proxy forwards client addresses, set `TRUSTED_PROXY_IPS` to its exact peer
+IP addresses as seen by the container, separated by commas. Docker may present
+the bridge gateway instead of host loopback. Only those peers can supply
+`X-Forwarded-For`; the chain is checked from right to left through trusted peers.
+Configure the proxy to overwrite or append the real client address, restrict
+direct access to its backend, and never trust arbitrary client-supplied headers.
+Without this setting, clients sharing a proxy also share its login limit.
+
+Authentication permits five failed or pending attempts per client address in
+five minutes. At most four login requests can read bodies or verify passwords at
+once; extra requests receive 503. Verification runs asynchronously with a
+five-second process deadline. Login bodies are limited to 4 KiB and ten seconds.
+
 ## Compatible environment settings
 
 The `.env` file uses the familiar settings:
@@ -148,6 +166,19 @@ Domain rules are implemented by the container's DNS proxy. Client UDP and TCP
 port 53 traffic is redirected to it, even if an external resolver is present
 in an older client profile. Resolved IPv4 addresses enter the matching policy
 set for the DNS TTL, bounded by `DNS_TTL_MIN` and `DNS_TTL_MAX`.
+
+DNS replies must match their upstream peer, transaction ID, and question. Only
+IN A answers for the requested name or its CNAME chain populate routing sets;
+negative and truncated replies never add addresses. TCP client queries use TCP
+upstream and support fragmented and pipelined messages. Query matching follows
+[RFC 5452 section 9.1](https://www.rfc-editor.org/rfc/rfc5452.html#section-9.1).
+
+The proxy allows 256 outstanding queries overall and 16 per client IP, with a
+four-second upstream deadline. TCP is limited to 128 connections overall, eight
+per client, and 131,074 bytes of queued input per connection. Incomplete
+frames have a five-second read deadline and idle connections close after ten
+seconds. Overloaded UDP queries receive SERVFAIL; failed or overloaded TCP queries
+close their connection. These bounds also apply to VPN clients.
 
 Important limitations:
 
@@ -375,6 +406,11 @@ the `3.1.20260828` image still reports `0.0.20250522`.
 
 ## Regression checks
 
+CI builds from a clean checkout, runs unit and loopback DNS tests in the built
+image, and initializes fresh VPN state. Run `node --test server/test/auth.test.js
+server/test/dns-proxy.test.js` for focused authentication and DNS regression tests.
+The real bcrypt test requires `htpasswd` and always runs in the Docker image.
+
 Run `bash server/test/run.sh` from the repository root. It builds the image
 and tests client allocation and overlapping upstream addresses through the live API in
 an isolated container. Docker access and `/dev/net/tun` are required; production
@@ -406,3 +442,16 @@ ports. Docker and host OpenSSL are required. Test profiles and certificates are
 generated temporarily and removed afterward. See
 [`server/test/namespace-proof/README.md`](server/test/namespace-proof/README.md)
 for the original proof topology and the integration test mode.
+
+## Image and privilege boundaries
+
+The default AWG runtime and Go builder are pinned by digest, and WireGuard source
+is pinned by commit. Existing `.env` files retain their `AWG_IMAGE` override;
+copy the digest-pinned value from `.env.example` to adopt it. Review and update
+these pins deliberately when upgrading. APK packages still follow the selected
+Alpine repositories, so builds are not fully reproducible package snapshots.
+
+The container uses `no-new-privileges`, but the web service still shares VPN keys
+and network privileges with the tunnel manager. `NET_ADMIN` and `SYS_ADMIN` are
+required by the present namespace design. Separating the web service from a
+privileged networking helper requires a separate architecture change.

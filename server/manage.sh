@@ -41,7 +41,7 @@ main() {
       ;;
     version)
       load_env; ensure_docker
-      printf 'Configured AWG image: %s\n' "${AWG_IMAGE:-amneziavpn/amneziawg-go:3.1.20260828}"
+      printf 'Configured AWG image: %s\n' "${AWG_IMAGE:-amneziavpn/amneziawg-go:3.1.20260828@sha256:cbafc02b8373a83f428272db6d8001b37bc02e6211cbd8c0cb4e2e3759b12b72}"
       compose run --rm --no-deps --entrypoint sh awg-chain-easy -lc 'node --version; amneziawg-go --version 2>/dev/null || true; awg --version; wireguard-go --version 2>/dev/null || true; wg --version'
       ;;
     config) load_env; ensure_docker; compose config ;;

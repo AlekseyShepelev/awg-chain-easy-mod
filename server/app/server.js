@@ -8,6 +8,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { RoutingManager, DnsPolicyProxy } = require('./routing');
 const { portRange, reverseInitiation, peerConnectionLines } = require('./connections');
+const { LoginGuard, verifyPassword, clientAddress, trustedProxies, sessionCookie } = require('./auth');
 
 const DATA_DIR = '/etc/wireguard';
 const STATE_FILE = path.join(DATA_DIR, 'wg0.json');
@@ -58,6 +59,8 @@ const settings = {
   uiPort: integerEnv('PORT', 51821, 1, 65535),
   maxAgeMinutes: integerEnv('MAX_AGE', 720, 1, 525600),
   passwordHash: env('PASSWORD_HASH', ''),
+  https: env('WEBUI_HTTPS', 'false'),
+  trustedProxies: trustedProxies(env('TRUSTED_PROXY_IPS', '')),
   dnsUpstream: env('DNS_UPSTREAM', '1.1.1.1'),
   dnsTtlMin: integerEnv('DNS_TTL_MIN', 30, 1, 86400),
   dnsTtlMax: integerEnv('DNS_TTL_MAX', 86400, 1, 604800),
@@ -69,6 +72,8 @@ function parseAddressPattern(name, value) {
   return match.slice(1).join('.');
 }
 if (!settings.host) throw new Error('WG_HOST is required');
+if (!['true', 'false'].includes(settings.https)) throw new Error('WEBUI_HTTPS must be true or false');
+settings.https = settings.https === 'true';
 const networkPrefix = parseAddressPattern('WG_DEFAULT_ADDRESS', settings.addressPattern);
 const legacyNetworkPrefix = parseAddressPattern('AWG2_DEFAULT_ADDRESS', settings.legacyAddressPattern);
 const nativeNetworkPrefix = parseAddressPattern('NATIVE_WG_DEFAULT_ADDRESS', settings.nativeAddressPattern);
@@ -103,13 +108,6 @@ function command(program, args = [], input = undefined) {
     throw new Error(`${program} ${args.join(' ')} failed: ${(result.stderr || result.stdout || '').trim()}`);
   }
   return result.stdout.trim();
-}
-
-function passwordMatches(password) {
-  const result = spawnSync('htpasswd', ['-vi', PASSWORD_FILE, 'admin'], {
-    input: `${password}\n`, encoding: 'utf8', stdio: ['pipe', 'ignore', 'ignore'],
-  });
-  return result.status === 0;
 }
 
 function protocolCommand(protocol) {
@@ -369,7 +367,7 @@ function parseCookies(request) {
 }
 
 const sessions = new Map();
-const loginAttempts = new Map();
+const loginGuard = new LoginGuard((password) => verifyPassword(password, PASSWORD_FILE));
 
 function sessionFor(request) {
   const token = parseCookies(request).awg3_session;
@@ -391,23 +389,26 @@ function send(response, status, body, type = 'application/json; charset=utf-8', 
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'",
+    ...(settings.https ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
     ...headers,
   });
   response.end(content);
 }
 
-async function readJson(request) {
+async function readJson(request, limit = 262144) {
   const chunks = [];
   let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > 262_144) throw Object.assign(new Error('Request body is too large'), { status: 413 });
-    chunks.push(chunk);
-  }
+  const timer = setTimeout(() => request.destroy(Object.assign(new Error('Request body timed out'), { status: 408 })), 10000);
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-  } catch (_) {
-    throw Object.assign(new Error('Invalid JSON'), { status: 400 });
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size > limit) throw Object.assign(new Error('Request body is too large'), { status: 413 });
+      chunks.push(chunk);
+    }
+    try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); }
+    catch (_) { throw Object.assign(new Error('Invalid JSON'), { status: 400 }); }
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -436,20 +437,13 @@ async function api(request, response, url) {
   }
   if (url.pathname === '/api/session' && request.method === 'POST') {
     requireSameOrigin(request);
-    const remote = request.socket.remoteAddress || 'unknown';
-    const attempt = loginAttempts.get(remote) || { count: 0, resetAt: Date.now() + 300_000 };
-    if (attempt.resetAt < Date.now()) { attempt.count = 0; attempt.resetAt = Date.now() + 300_000; }
-    if (attempt.count >= 5) throw Object.assign(new Error('Too many login attempts; try again later'), { status: 429 });
-    const { password } = await readJson(request);
-    if (typeof password !== 'string' || !passwordMatches(password)) {
-      attempt.count += 1; loginAttempts.set(remote, attempt);
-      throw Object.assign(new Error('Incorrect password'), { status: 401 });
-    }
-    loginAttempts.delete(remote);
+    await loginGuard.authenticate(clientAddress(request, settings.trustedProxies), async () => (await readJson(request, 4096))?.password);
+    for (const [key, session] of sessions) if (session.expiresAt <= Date.now()) sessions.delete(key);
+    if (sessions.size >= 1024) throw Object.assign(new Error('Too many active sessions'), { status: 503 });
     const token = crypto.randomBytes(32).toString('base64url');
     sessions.set(token, { expiresAt: Date.now() + settings.maxAgeMinutes * 60_000 });
     return send(response, 200, { success: true }, 'application/json; charset=utf-8', {
-      'Set-Cookie': `awg3_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${settings.maxAgeMinutes * 60}`,
+      'Set-Cookie': sessionCookie(token, settings.maxAgeMinutes * 60, settings.https),
     });
   }
 
@@ -460,7 +454,7 @@ async function api(request, response, url) {
   if (url.pathname === '/api/session' && request.method === 'DELETE') {
     sessions.delete(session.token);
     return send(response, 200, { success: true }, 'application/json; charset=utf-8', {
-      'Set-Cookie': 'awg3_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+      'Set-Cookie': sessionCookie('', 0, settings.https),
     });
   }
   if (url.pathname === '/api/wireguard/status' && request.method === 'GET') {
@@ -645,7 +639,8 @@ async function main() {
   await routing.startAll();
   dnsProxy = new DnsPolicyProxy(routing);
   await dnsProxy.start();
-  const server = http.createServer(handle);
+  const server = http.createServer({ requestTimeout: 10000, headersTimeout: 10000, keepAliveTimeout: 5000 }, handle);
+  server.maxConnections = 128;
   server.listen(settings.uiPort, '0.0.0.0', () => console.log(`[awg-chain-easy] Web UI listening on port ${settings.uiPort}`));
   let closing = false;
   const shutdown = async () => {

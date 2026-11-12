@@ -6,7 +6,7 @@ TEST_IMAGE="${1:-awg-chain-easy:address-conflict-test}"
 if [[ $# -eq 0 ]]; then
   docker build -t "$TEST_IMAGE" "$SERVICE_DIR"
 fi
-docker run --rm --cap-add NET_ADMIN --cap-add SYS_ADMIN --device /dev/net/tun \
+docker run --rm --network none --security-opt no-new-privileges:true --cap-add NET_ADMIN --cap-add SYS_ADMIN --device /dev/net/tun \
   --sysctl net.ipv4.ip_forward=1 \
   --sysctl net.ipv4.conf.all.src_valid_mark=1 \
   --sysctl net.ipv4.conf.all.rp_filter=0 \

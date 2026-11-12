@@ -1,10 +1,9 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const dgram = require('node:dgram');
+const { DnsPolicyProxy } = require('./dns-proxy');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
-const net = require('node:net');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { listenPort, portRange, withListenPort, connectionStatus } = require('./connections');
@@ -884,128 +883,6 @@ class RoutingManager {
       this.removeRule(11100 + slot);
       tryRun('ip', ['-4', 'route', 'flush', 'table', String(201 + slot)]);
     }
-  }
-}
-
-function readDnsName(buffer, start) {
-  let offset = start;
-  let next = start;
-  let jumped = false;
-  const labels = [];
-  const visited = new Set();
-  while (offset < buffer.length) {
-    if (visited.has(offset)) throw new Error('DNS compression loop');
-    visited.add(offset);
-    const length = buffer[offset];
-    if (length === 0) {
-      if (!jumped) next = offset + 1;
-      return { name: labels.join('.').toLowerCase(), next };
-    }
-    if ((length & 0xc0) === 0xc0) {
-      if (offset + 1 >= buffer.length) throw new Error('Truncated DNS pointer');
-      if (!jumped) next = offset + 2;
-      offset = ((length & 0x3f) << 8) | buffer[offset + 1];
-      jumped = true;
-      continue;
-    }
-    if (length > 63 || offset + 1 + length > buffer.length) throw new Error('Invalid DNS label');
-    labels.push(buffer.subarray(offset + 1, offset + 1 + length).toString('ascii'));
-    offset += 1 + length;
-    if (!jumped) next = offset;
-  }
-  throw new Error('Truncated DNS name');
-}
-
-function inspectDns(query, response) {
-  if (query.length < 12 || response.length < 12) return null;
-  let queryOffset = 12;
-  const question = readDnsName(query, queryOffset);
-  const domain = question.name;
-  let offset = 12;
-  const questions = response.readUInt16BE(4);
-  const answers = response.readUInt16BE(6);
-  for (let index = 0; index < questions; index += 1) {
-    const name = readDnsName(response, offset);
-    offset = name.next + 4;
-    if (offset > response.length) return null;
-  }
-  const addresses = [];
-  let ttl = Number.MAX_SAFE_INTEGER;
-  for (let index = 0; index < answers; index += 1) {
-    const name = readDnsName(response, offset);
-    offset = name.next;
-    if (offset + 10 > response.length) break;
-    const type = response.readUInt16BE(offset);
-    const recordTtl = response.readUInt32BE(offset + 4);
-    const length = response.readUInt16BE(offset + 8);
-    offset += 10;
-    if (offset + length > response.length) break;
-    if (type === 1 && length === 4) {
-      addresses.push([...response.subarray(offset, offset + 4)].join('.'));
-      ttl = Math.min(ttl, recordTtl);
-    }
-    offset += length;
-  }
-  return { domain, addresses: [...new Set(addresses)], ttl: ttl === Number.MAX_SAFE_INTEGER ? 60 : ttl };
-}
-
-class DnsPolicyProxy {
-  constructor(routing) {
-    this.routing = routing;
-    this.udp = null;
-    this.tcp = null;
-  }
-
-  forward(query) {
-    return new Promise((resolve, reject) => {
-      const socket = dgram.createSocket('udp4');
-      const timeout = setTimeout(() => { socket.close(); reject(new Error('DNS upstream timeout')); }, 4000);
-      socket.once('error', (error) => { clearTimeout(timeout); socket.close(); reject(error); });
-      socket.once('message', (response) => { clearTimeout(timeout); socket.close(); resolve(response); });
-      socket.send(query, 53, this.routing.dnsUpstream);
-    });
-  }
-
-  async resolve(query) {
-    const response = await this.forward(query);
-    const result = inspectDns(query, response);
-    if (result?.addresses.length) {
-      const policy = this.routing.matchingDomainPolicy(result.domain);
-      if (policy) await this.routing.addDnsAddresses(policy, result.addresses, result.ttl);
-    }
-    return response;
-  }
-
-  async start() {
-    this.udp = dgram.createSocket('udp4');
-    this.udp.on('message', async (query, remote) => {
-      try { this.udp.send(await this.resolve(query), remote.port, remote.address); } catch (error) { console.error(`[awg-chain-easy] DNS: ${error.message}`); }
-    });
-    await new Promise((resolve, reject) => { this.udp.once('error', reject); this.udp.bind(53, '0.0.0.0', resolve); });
-
-    this.tcp = net.createServer((socket) => {
-      let buffer = Buffer.alloc(0);
-      socket.on('data', async (chunk) => {
-        buffer = Buffer.concat([buffer, chunk]);
-        if (buffer.length < 2) return;
-        const length = buffer.readUInt16BE(0);
-        if (length > 65535 || buffer.length < length + 2) return;
-        const query = buffer.subarray(2, length + 2);
-        try {
-          const response = await this.resolve(query);
-          const framed = Buffer.alloc(response.length + 2);
-          framed.writeUInt16BE(response.length, 0);
-          response.copy(framed, 2);
-          socket.end(framed);
-        } catch (error) { socket.destroy(error); }
-      });
-    });
-    await new Promise((resolve, reject) => { this.tcp.once('error', reject); this.tcp.listen(53, '0.0.0.0', resolve); });
-  }
-
-  async stop() {
-    if (this.udp) this.udp.close();
-    if (this.tcp) await new Promise((resolve) => this.tcp.close(resolve));
   }
 }
 
