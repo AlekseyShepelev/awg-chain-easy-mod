@@ -407,7 +407,8 @@ the `3.1.20260828` image still reports `0.0.20250522`.
 ## Regression checks
 
 CI builds from a clean checkout, runs unit and loopback DNS tests in the built
-image, and initializes fresh VPN state. Run `node --test server/test/auth.test.js
+image, initializes fresh VPN state, and starts all three VPN interfaces for the
+isolated live API regression suite. Run `node --test server/test/auth.test.js
 server/test/dns-proxy.test.js` for focused authentication and DNS regression tests.
 The real bcrypt test requires `htpasswd` and always runs in the Docker image.
 

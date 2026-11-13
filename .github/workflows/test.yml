@@ -1,0 +1,31 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build from the checkout
+        run: docker build -t awg-chain-easy:ci server
+      - name: Run unit and loopback network tests inside the runtime image
+        run: >-
+          docker run --rm --network none --security-opt no-new-privileges:true
+          --mount type=bind,src=$PWD/server/test,dst=/tests,readonly
+          --entrypoint node awg-chain-easy:ci --test
+          /tests/connection-settings.test.js /tests/upstream-network.test.js
+          /tests/failover.test.js /tests/dns-proxy.test.js /tests/auth.test.js
+      - name: Initialize fresh VPN state without production credentials
+        run: >-
+          docker run --rm --network none --security-opt no-new-privileges:true
+          -e WG_HOST=127.0.0.1 --entrypoint node
+          awg-chain-easy:ci /app/server.js --initialize
+      - name: Start the VPN service and exercise the live API
+        run: bash server/test/run.sh awg-chain-easy:ci
