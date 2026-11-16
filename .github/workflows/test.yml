@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Validate portable Compose configuration
+        run: docker compose --project-directory server --env-file server/.env.example config --quiet
       - name: Build from the checkout
         run: docker build -t awg-chain-easy:ci server
       - name: Run unit and loopback network tests inside the runtime image

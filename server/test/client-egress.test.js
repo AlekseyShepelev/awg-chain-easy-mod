@@ -22,3 +22,13 @@ test('mode validation and atomic cleanup prevent reused addresses inheriting pin
  let s;r.applyNftScript=x=>(s=x,{status:0});await r.syncDirectClients();assert.ok(s.includes('add element inet awg_chain_easy client_upstream_0 { 10.8.3.2 }'));
  clients[0].egress='default';await r.syncDirectClients();assert.ok(!s.includes('add element'));
 });
+
+// A return in policy_routes unwinds through policy_gate to classify.
+test('destination policy marks survive return from the policy gate', () => {
+ const r=make([]);
+ r.state.policies={p:{id:'12345678-1234',name:'Pinned destination',enabled:true,priority:1,domains:[],networks:['192.0.2.0/24'],route:{type:'upstream',upstreamId:'b'}}};
+ assert.match(r.nftScript(),/jump policy_gate\n\s+ct mark != 0 return\n\s+jump default_route/);
+ assert.match(r.nftScript(),/chain policy_gate \{ jump policy_routes; \}/);
+ r.state.policiesEnabled=false;
+ assert.match(r.nftScript(),/chain policy_gate \{  \}/);
+});

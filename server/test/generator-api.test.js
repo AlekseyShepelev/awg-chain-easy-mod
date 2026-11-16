@@ -164,4 +164,3 @@ test('AWG3.1 flags and named vpn exports through authenticated live API', { time
   assert.ok(execFileSync('nft',['list','chain','inet','awg_chain_easy','policy_gate'],{encoding:'utf8'}).includes('jump policy_routes'));
 
 });
-

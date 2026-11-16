@@ -502,6 +502,7 @@ class RoutingManager {
       `        ct mark != 0 return\n` +
       `        ip daddr @system_direct_v4 meta mark set ${DIRECT_MARK} ct mark set meta mark return\n` +
       `        jump policy_gate\n` +
+      `        ct mark != 0 return\n` +
       `        jump default_route\n` +
       `    }\n` +
       `    chain policy_gate { ${this.state.policiesEnabled !== false ? 'jump policy_routes;' : ''} }\n` +

@@ -1265,4 +1265,3 @@ elements['failover-return'].addEventListener('click', async () => {
 request('/api/session')
   .then((session) => session.authenticated ? showApp() : showLogin())
   .catch(() => showLogin());
-
