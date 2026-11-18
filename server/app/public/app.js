@@ -738,9 +738,6 @@ function renderClients(clients) {
     actions.append(button('Edit', 'secondary', () => openRenameClient(client)));
     actions.append(button('Connection', 'secondary', () => openPeerConnection(client)));
     actions.append(button('Export', 'secondary', () => openClientExport(client)));
-    actions.append(button('Config (.conf)', 'secondary', () => openClientConfig(client)));
-    actions.append(button('Key (vpn://)', 'secondary', () => openClientConfig(client, true)));
-    actions.append(button('QR', 'secondary', () => openClientQr(client)));
     actions.append(button('Reset', 'danger', async () => {
       if (!await confirmAction('Reset statistics', 'Reset statistics for client “{name}”? Traffic totals and the saved last handshake will be cleared for this client only. Keys, configuration and VPN connections are preserved. This cannot be undone in the panel. Continue?', 'Reset', { name: client.name })) return;
       try { await request(`/api/wireguard/client/${client.id}/statistics/reset`, { method: 'POST', body: JSON.stringify({ confirm: true }) }); await refresh(); }
@@ -763,7 +760,7 @@ function renderClients(clients) {
     actions.classList.add('client-actions');
     const actionButtons = [...actions.children];
     actions.replaceChildren();
-    for (const group of [actionButtons.slice(0, 3), actionButtons.slice(3, 6), actionButtons.slice(6)]) {
+    for (const group of [actionButtons.slice(0, 3), actionButtons.slice(3)]) {
       const line = document.createElement('div');
       line.className = 'client-action-line';
       line.append(...group);
