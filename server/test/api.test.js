@@ -36,7 +36,7 @@ test('AWG3.1 flags and named vpn exports through authenticated live API', { time
   assert.equal((await settingsCall('PUT', originalSettings)).status, 200);
   assert.equal((await fetch(base+'/api/about')).status,401);
   const about=await (await fetch(base+'/api/about',{headers:{Cookie:cookie}})).json();const buildInfo=JSON.parse(fs.readFileSync('/app/build-info.json','utf8'));assert.equal(about.version,buildInfo.version);assert.equal(about.baseCommit,buildInfo.baseCommit);assert.equal(about.build,buildInfo.build);
-  assert.ok((await (await fetch(base+'/favicon.svg')).text()).includes('>AC<'));
+  assert.ok((await (await fetch(base+'/favicon.svg')).text()).includes('>ACM<'));
   const ico=Buffer.from(await (await fetch(base+'/favicon.ico')).arrayBuffer());assert.equal(ico.readUInt16LE(2),1);
   const policyCreate=await fetch(base+'/api/routing/policies',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({name:'Lock test',domains:['example.org'],networks:[],priority:100,enabled:false,route:{type:'direct'}})});assert.equal(policyCreate.status,201);const policyId=(await policyCreate.json()).id;
   const policyCall=(suffix,method,body)=>fetch(base+'/api/routing/'+suffix,{method,headers:{Cookie:cookie,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
