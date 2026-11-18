@@ -7,6 +7,7 @@
     'Reset traffic for upstream “{name}”? Only its accumulated traffic will be cleared. Configuration, connections and handshake times are preserved. This cannot be undone in the panel. Continue?': 'Сбросить трафик туннеля «{name}»? Обнулится только его накопленный трафик. Конфигурация, соединения и время обмена ключами сохранятся. Отменить сброс в панели нельзя. Продолжить?',
     'Automatic failover checks upstream availability and switches the default route to another eligible tunnel when the current one fails. Enable it to edit the check parameters; disabling preserves their saved values.': 'Автоматическое резервирование проверяет доступность выходных туннелей и при отказе текущего переключает маршрут по умолчанию на другой подходящий туннель. Включите резервирование, чтобы изменить параметры проверок. При выключении сохранённые значения не теряются.',
 
+    'Export': 'Экспорт', 'Export: {name}': 'Экспорт: {name}',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'Fork build': 'Сборка форка', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     'AWG Chain Easy is a web control panel for a VPN gateway supporting AmneziaWG 3, AmneziaWG 2 and WireGuard. It lets you create client profiles, export configurations and QR codes, and monitor handshakes and accumulated traffic.': 'AWG Chain Easy — веб-панель управления VPN-шлюзом с поддержкой AmneziaWG 3, AmneziaWG 2 и WireGuard. Здесь можно создавать клиентские профили, получать конфигурации и QR-коды, отслеживать обмен ключами и накопленный трафик.',
     'The gateway can send client traffic directly to the Internet or through imported upstream tunnels. Domain and network rules select destinations, while priority-based failover checks upstream availability and switches routes when needed.': 'Шлюз направляет трафик клиентов напрямую в интернет или через подключённые выходные туннели. Правила для доменов и IP-сетей определяют маршрут, а резервирование по приоритетам проверяет доступность туннелей и при необходимости переключает соединение.',
@@ -632,11 +633,61 @@ function openRenameClient(client) {
   elements['rename-name'].select();
 }
 
+const exportTabs = document.querySelector('#export-tabs');
+const exportQr = document.querySelector('#export-qr');
+const qrContent = document.querySelector('#qr-content');
+let exportClient = null;
+
+function selectClientExport(mode) {
+  const client = exportClient;
+  if (!client) return;
+  const qr = mode === 'qr';
+  exportQr.hidden = !qr;
+  for (const tab of exportTabs.querySelectorAll('button')) {
+    const selected = tab.dataset.export === mode;
+    tab.setAttribute('aria-pressed', String(selected));
+    tab.classList.toggle('primary', selected);
+    tab.classList.toggle('secondary', !selected);
+  }
+  if (!qr) {
+    stopQrAnimation();
+    elements['qr-image'].removeAttribute('src');
+    openClientConfig(client, mode === 'vpn');
+    return;
+  }
+  configViewController?.abort();
+  configViewController = null;
+  elements['config-loading'].hidden = true;
+  elements['config-text'].value = '';
+  elements['config-text'].hidden = true;
+  elements['config-vpn-text'].textContent = '';
+  elements['config-vpn-text'].hidden = true;
+  elements['config-copy'].hidden = true;
+  elements['config-download'].hidden = true;
+  elements['config-download'].removeAttribute('href');
+  text(elements['config-error'], '');
+  qrClient = client;
+  selectQrMode(lastData?.guiSettings?.qrFormat === 'amnezia');
+}
+
+for (const tab of exportTabs.querySelectorAll('button')) {
+  tab.addEventListener('click', () => selectClientExport(tab.dataset.export));
+}
+
+function openClientExport(client) {
+  exportClient = client;
+  exportTabs.hidden = false;
+  exportQr.append(qrContent);
+  text(elements['config-title'], 'Export: {name}', { name: client.name });
+  elements['config-dialog'].showModal();
+  selectClientExport('conf');
+}
+
 async function openClientConfig(client, vpn = false) {
   configViewController?.abort();
   const controller = new AbortController();
   configViewController = controller;
-  text(elements['config-title'], vpn ? 'vpn://: {name}' : 'Config: {name}', { name: client.name });
+  if (!exportClient) text(elements['config-title'], vpn ? 'vpn://: {name}' : 'Config: {name}', { name: client.name });
   elements['config-vpn-text'].textContent = '';
   elements['config-vpn-text'].hidden = true;
   elements['config-copy'].hidden = true;
@@ -647,7 +698,7 @@ async function openClientConfig(client, vpn = false) {
   elements['config-text'].hidden = true;
   text(elements['config-error'], '');
   elements['config-loading'].hidden = false;
-  elements['config-dialog'].showModal();
+  if (!elements['config-dialog'].open) elements['config-dialog'].showModal();
   try {
       const config = await request(`/api/wireguard/client/${client.id}/${vpn ? 'configuration.vpn' : 'configuration'}`, {
       signal: controller.signal, cache: 'no-store',
@@ -692,6 +743,7 @@ function renderClients(clients) {
 
     actions.append(button('Edit', 'secondary', () => openRenameClient(client)));
     actions.append(button('Connection', 'secondary', () => openPeerConnection(client)));
+    actions.append(button('Export', 'secondary', () => openClientExport(client)));
     actions.append(button('Config (.conf)', 'secondary', () => openClientConfig(client)));
     actions.append(button('Key (vpn://)', 'secondary', () => openClientConfig(client, true)));
     actions.append(button('QR', 'secondary', () => openClientQr(client)));
@@ -717,7 +769,7 @@ function renderClients(clients) {
     actions.classList.add('client-actions');
     const actionButtons = [...actions.children];
     actions.replaceChildren();
-    for (const group of [actionButtons.slice(0, 2), actionButtons.slice(2, 5), actionButtons.slice(5)]) {
+    for (const group of [actionButtons.slice(0, 3), actionButtons.slice(3, 6), actionButtons.slice(6)]) {
       const line = document.createElement('div');
       line.className = 'client-action-line';
       line.append(...group);
@@ -900,12 +952,17 @@ async function selectQrMode(amnezia) {
   stopQrAnimation();
   elements['qr-conf-panel'].hidden = amnezia;
   elements['qr-amnezia-panel'].hidden = !amnezia;
-  if (!amnezia || !qrClient) return;
+  elements['qr-image'].removeAttribute('src');
+  if (!qrClient) return;
+  if (!amnezia) {
+    elements['qr-image'].src = `/api/wireguard/client/${qrClient.id}/qrcode.svg`;
+    return;
+  }
   const requestId = qrRequest;
   text(elements['qr-vpn-status'], 'Loading QR codes…');
   try {
     const { frames } = await request(`/api/wireguard/client/${qrClient.id}/qrcode.amnezia`);
-    if (requestId !== qrRequest || !elements['qr-dialog'].open) return;
+    if (requestId !== qrRequest || !(elements['qr-dialog'].open || (elements['config-dialog'].open && !exportQr.hidden))) return;
     let index = 0;
     const display = () => {
       elements['qr-vpn-image'].src = frames[index];
@@ -922,7 +979,6 @@ async function selectQrMode(amnezia) {
 function openClientQr(client) {
   qrClient = client;
   text(elements['qr-title'], 'QR code: {name}', { name: client.name });
-  elements['qr-image'].src = `/api/wireguard/client/${client.id}/qrcode.svg`;
   elements['qr-dialog'].showModal();
   selectQrMode(lastData?.guiSettings?.qrFormat === 'amnezia');
 }
@@ -1017,6 +1073,14 @@ elements['config-copy'].addEventListener('click', async () => {
 
 elements['close-config-button'].addEventListener('click', () => elements['config-dialog'].close());
 elements['config-dialog'].addEventListener('close', () => {
+  if (exportClient) {
+    exportClient = null;
+    exportTabs.hidden = true;
+    exportQr.hidden = true;
+    stopQrAnimation();
+    elements['qr-image'].removeAttribute('src');
+    elements['qr-dialog'].append(qrContent);
+  }
   configViewController?.abort();
   configViewController = null;
   elements['config-vpn-text'].textContent = '';

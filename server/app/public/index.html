@@ -9,7 +9,7 @@
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
   <link rel="stylesheet" href="/styles.css">
-  <script defer src="/app.js"></script>
+  <script defer src="/app.js?v=2.1.2"></script>
 </head>
 <body>
   <header class="global-header">
@@ -319,6 +319,12 @@
 
   <dialog id="config-dialog" class="dialog" aria-labelledby="config-title">
     <div class="dialog-heading"><h2 id="config-title">Client config</h2><button id="close-config-button" class="button secondary compact" type="button">Close</button></div>
+    <div id="export-tabs" class="segmented-switch" role="group" aria-label="Export" hidden>
+      <button class="button compact" type="button" data-export="conf">Config (.conf)</button>
+      <button class="button compact" type="button" data-export="vpn">Key (vpn://)</button>
+      <button class="button compact" type="button" data-export="qr">QR</button>
+    </div>
+    <div id="export-qr" hidden></div>
     <p id="config-loading" role="status" hidden>Loading configuration…</p>
     <textarea id="config-text" class="code-input config-text" rows="18" aria-label="Client configuration" readonly spellcheck="false" wrap="off" hidden></textarea>
     <pre id="config-vpn-text" class="code-input vpn-preview" aria-label="VPN connection string" tabindex="0" hidden></pre>
@@ -337,6 +343,7 @@
 
   <dialog id="qr-dialog" class="dialog">
     <div class="dialog-heading"><div><h2 id="qr-title">Client QR code</h2><p>Scan with a client compatible with the selected protocol.</p></div><button id="close-qr-button" class="button secondary compact" type="button">Close</button></div>
+    <div id="qr-content">
     <section id="qr-conf-panel">
       <div class="qr-surface"><img id="qr-image" alt="Client configuration QR code"></div>
     </section>
@@ -346,6 +353,7 @@
       <div class="qr-surface"><img id="qr-vpn-image" alt="Amnezia connection QR code" hidden></div>
     </section>
 
+    </div>
   </dialog>
 </body>
 </html>
