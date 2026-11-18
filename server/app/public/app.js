@@ -7,7 +7,7 @@
     'Reset traffic for upstream “{name}”? Only its accumulated traffic will be cleared. Configuration, connections and handshake times are preserved. This cannot be undone in the panel. Continue?': 'Сбросить трафик туннеля «{name}»? Обнулится только его накопленный трафик. Конфигурация, соединения и время обмена ключами сохранятся. Отменить сброс в панели нельзя. Продолжить?',
     'Automatic failover checks upstream availability and switches the default route to another eligible tunnel when the current one fails. Enable it to edit the check parameters; disabling preserves their saved values.': 'Автоматическое резервирование проверяет доступность выходных туннелей и при отказе текущего переключает маршрут по умолчанию на другой подходящий туннель. Включите резервирование, чтобы изменить параметры проверок. При выключении сохранённые значения не теряются.',
 
-    'About': 'О программе', 'Base project version': 'Версия базового проекта', 'Base commit': 'Базовый коммит', 'Local build': 'Локальная сборка', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
+    'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Fork build': 'Сборка форка', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     'AWG Chain Easy is a web control panel for a VPN gateway supporting AmneziaWG 3, AmneziaWG 2 and WireGuard. It lets you create client profiles, export configurations and QR codes, and monitor handshakes and accumulated traffic.': 'AWG Chain Easy — веб-панель управления VPN-шлюзом с поддержкой AmneziaWG 3, AmneziaWG 2 и WireGuard. Здесь можно создавать клиентские профили, получать конфигурации и QR-коды, отслеживать обмен ключами и накопленный трафик.',
     'The gateway can send client traffic directly to the Internet or through imported upstream tunnels. Domain and network rules select destinations, while priority-based failover checks upstream availability and switches routes when needed.': 'Шлюз направляет трафик клиентов напрямую в интернет или через подключённые выходные туннели. Правила для доменов и IP-сетей определяют маршрут, а резервирование по приоритетам проверяет доступность туннелей и при необходимости переключает соединение.',
     'This installation includes local enhancements: client routing modes, persistent statistics, Russian and English interfaces, Amnezia QR export and settings managed from the web interface.': 'В этой установке добавлены собственные доработки: режимы маршрутизации для отдельных клиентов, сохранение статистики, русский и английский интерфейсы, QR-коды Amnezia и управление настройками через веб-панель.',
@@ -92,7 +92,7 @@
     'Scan with a client compatible with the selected protocol.': 'Сканируйте приложением, поддерживающим выбранный протокол.',
     'Client configuration QR code': 'QR-код конфигурации клиента',
     'Configuration QR (.conf)': 'QR конфигурации (.conf)', 'Amnezia QR (vpn://)': 'QR Amnezia (vpn://)', 'Scan all changing QR codes to import the connection.': 'Для импорта подключения отсканируйте все сменяющиеся QR-коды.', 'QR {current} of {total}': 'QR {current} из {total}', 'Loading QR codes…': 'Загрузка QR-кодов…', 'Includes the server name for Amnezia import.': 'Содержит имя сервера для импорта в Amnezia.', 'Amnezia connection QR code': 'QR-код подключения Amnezia',
-    'Never': 'Никогда', '{n}s ago': '{n} сек. назад', '{n}m ago': '{n} мин. назад', '{n}h ago': '{n} ч. назад',
+    'Never': 'Никогда', '{n}s ago': '{n} сек. назад', '{n}m ago': '{n} мин. назад', '{n}h ago': '{n} ч. назад', '{n}d ago': '{n} дн. назад',
     'B': 'Б', 'KiB': 'КиБ', 'MiB': 'МиБ', 'GiB': 'ГиБ', 'Port': 'Порт', 'Download': 'Скачать', 'Download .vpn': 'Скачать .vpn',
     'Config (.conf)': 'Конфиг (.conf)', 'Key (vpn://)': 'Ключ (vpn://)', 'Copy': 'Скопировать', 'Copied': 'Скопировано', 'Could not copy. Select and copy the text manually.': 'Не удалось скопировать. Выделите и скопируйте текст вручную.', 'View .cfg': 'Просмотр .cfg', 'View vpn://': 'Просмотр vpn://', 'Rename': 'Переименовать', 'Rename client': 'Переименовать клиента', 'Save name': 'Сохранить имя', 'Client renamed.': 'Клиент переименован.', 'View': 'Просмотр', 'Disable': 'Выключить', 'Enable': 'Включить', 'Delete': 'Удалить', 'Edit': 'Изменить',
     'Direct': 'Напрямую', 'Blocked': 'Заблокировано', 'Missing upstream': 'Туннель не найден', 'Direct via eth0 (Server A)': 'Напрямую через eth0 (Server A)',
@@ -271,12 +271,13 @@ function bytes(value) {
   return `${(number / 1024 ** 3).toFixed(1)} ${t('GiB')}`;
 }
 
-function time(value) {
+function time(value, relativeDays = false) {
   if (!value) return t('Never');
   const elapsed = Math.max(0, Date.now() - Date.parse(value));
   if (elapsed < 60_000) return t('{n}s ago', { n: Math.floor(elapsed / 1000) });
   if (elapsed < 3_600_000) return t('{n}m ago', { n: Math.floor(elapsed / 60_000) });
   if (elapsed < 86_400_000) return t('{n}h ago', { n: Math.floor(elapsed / 3_600_000) });
+  if (relativeDays) return t('{n}d ago', { n: Math.floor(elapsed / 86_400_000) });
   return new Date(value).toLocaleString(I18N.locale);
 }
 
@@ -727,7 +728,7 @@ function renderClients(clients) {
       cell('Protocol', client.protocol || 'AWG3', 'mono'),
       cell('Address', client.address, 'mono'),
       cell('Status', statusBadge(client), 'status-column'),
-      cell('Latest handshake', time(client.latestHandshakeAt), 'numeric'),
+      cell('Latest handshake', time(client.latestHandshakeAt, true), 'numeric'),
       cell('Transfer', transfer),
       cell('Actions', actions, 'actions-column'),
     );

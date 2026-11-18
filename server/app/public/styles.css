@@ -67,7 +67,8 @@ button, input { font: inherit; }
 .language-switch button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .language-switch svg { width: 19px; height: 13px; border-radius: 1px; box-shadow: 0 0 0 1px rgb(128 128 128 / 25%); }
 .product { display: flex; align-items: center; gap: var(--space-2); font-weight: 650; letter-spacing: .01em; }
-.product-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-control); color: var(--color-accent-contrast); background: var(--color-accent); font-size: 11px; font-weight: 700; }
+.product-mod { color: #ff7878; }
+.product-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-control); color: var(--color-accent-contrast); background: #b4232d; color: #fff; font-size: 11px; font-weight: 700; }
 .primary-nav { align-self: stretch; display: flex; align-items: stretch; margin-left: var(--space-6); margin-right: auto; }
 .nav-button { position: relative; border: 0; padding: 0 var(--space-3); color: var(--color-text-muted); background: transparent; cursor: pointer; font-weight: 650; }
 .nav-button::after { content: ""; position: absolute; right: var(--space-3); bottom: 0; left: var(--space-3); height: 2px; background: transparent; }
@@ -260,6 +261,7 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 
 .policy-mode-buttons { display: flex; gap: var(--space-1); }
 
+.about-upstream { border-top: 1px solid var(--color-border-control); margin-top: 16px; padding-top: 12px; }
 .about-content { line-height: 1.65; }
 .about-versions { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-4); margin: var(--space-4) 0; }
 .about-versions dt { color: var(--color-text-muted); }
