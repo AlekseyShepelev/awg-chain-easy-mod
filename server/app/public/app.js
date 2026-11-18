@@ -7,7 +7,7 @@
     'Reset traffic for upstream “{name}”? Only its accumulated traffic will be cleared. Configuration, connections and handshake times are preserved. This cannot be undone in the panel. Continue?': 'Сбросить трафик туннеля «{name}»? Обнулится только его накопленный трафик. Конфигурация, соединения и время обмена ключами сохранятся. Отменить сброс в панели нельзя. Продолжить?',
     'Automatic failover checks upstream availability and switches the default route to another eligible tunnel when the current one fails. Enable it to edit the check parameters; disabling preserves their saved values.': 'Автоматическое резервирование проверяет доступность выходных туннелей и при отказе текущего переключает маршрут по умолчанию на другой подходящий туннель. Включите резервирование, чтобы изменить параметры проверок. При выключении сохранённые значения не теряются.',
 
-    'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Fork build': 'Сборка форка', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
+    'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'Fork build': 'Сборка форка', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     'AWG Chain Easy is a web control panel for a VPN gateway supporting AmneziaWG 3, AmneziaWG 2 and WireGuard. It lets you create client profiles, export configurations and QR codes, and monitor handshakes and accumulated traffic.': 'AWG Chain Easy — веб-панель управления VPN-шлюзом с поддержкой AmneziaWG 3, AmneziaWG 2 и WireGuard. Здесь можно создавать клиентские профили, получать конфигурации и QR-коды, отслеживать обмен ключами и накопленный трафик.',
     'The gateway can send client traffic directly to the Internet or through imported upstream tunnels. Domain and network rules select destinations, while priority-based failover checks upstream availability and switches routes when needed.': 'Шлюз направляет трафик клиентов напрямую в интернет или через подключённые выходные туннели. Правила для доменов и IP-сетей определяют маршрут, а резервирование по приоритетам проверяет доступность туннелей и при необходимости переключает соединение.',
     'This installation includes local enhancements: client routing modes, persistent statistics, Russian and English interfaces, Amnezia QR export and settings managed from the web interface.': 'В этой установке добавлены собственные доработки: режимы маршрутизации для отдельных клиентов, сохранение статистики, русский и английский интерфейсы, QR-коды Amnezia и управление настройками через веб-панель.',
@@ -195,7 +195,7 @@ const elements = Object.fromEntries([
   'close-upstream-port', 'upstream-port-form', 'upstream-port-value', 'upstream-port-range', 'upstream-port-error',
   'upstream-priority-dialog', 'upstream-priority-title', 'close-upstream-priority',
   'upstream-priority-form', 'upstream-priority-value', 'upstream-priority-error',
-  'primary-nav', 'clients-page', 'routing-page', 'settings-page', 'about-page', 'about-version', 'about-commit', 'about-build', 'about-awg', 'server-settings-form', 'settings-server-name', 'server-settings-message', 'dns-settings-form', 'dns-settings-rows', 'dns-settings-message', 'dns-add', 'dns-test', 'qr-settings-form', 'settings-qr-format', 'qr-settings-message', 'new-upstream-button', 'new-policy-button',
+  'primary-nav', 'clients-page', 'routing-page', 'settings-page', 'about-page', 'about-version', 'about-commit', 'about-build-commit', 'about-build', 'about-awg', 'server-settings-form', 'settings-server-name', 'server-settings-message', 'dns-settings-form', 'dns-settings-rows', 'dns-settings-message', 'dns-add', 'dns-test', 'qr-settings-form', 'settings-qr-format', 'qr-settings-message', 'new-upstream-button', 'new-policy-button',
   'dns-status', 'dns-upstream', 'upstream-count', 'policy-count',
   'default-route-form', 'default-route', 'default-route-error',
   'failover-status', 'failover-health', 'failover-health-table', 'failover-runtime-error', 'failover-settings', 'failover-form', 'failover-fields',
@@ -784,6 +784,15 @@ function showPage(page) {
   elements['about-page'].hidden = page !== 'about';
   if (page === 'about') request('/api/about').then(info => {
     for (const [id, key] of [['about-version','version'],['about-commit','baseCommit'],['about-build','build'],['about-awg','amneziawgVersion']]) elements[id].textContent = info[key] || '—';
+    const commit = elements['about-build-commit'];
+    commit.textContent = '—';
+    if (/^[0-9a-f]{40}$/.test(info.commit)) {
+      const link = document.createElement('a');
+      link.href = `https://github.com/AlekseyShepelev/awg-chain-easy-mod/commit/${info.commit}`;
+      link.textContent = info.commit.slice(0, 7);
+      link.title = info.commit;
+      commit.replaceChildren(link);
+    }
   }).catch(error => showMessage(error.message));
   for (const item of document.querySelectorAll('.nav-button')) item.classList.toggle('active', item.dataset.page === page);
 }
