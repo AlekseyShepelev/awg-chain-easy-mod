@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.1.3">
-  <script defer src="/app.js?v=2.1.3"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.1.5">
+  <script defer src="/app.js?v=2.1.5"></script>
 </head>
 <body>
   <header class="global-header">
@@ -219,7 +219,7 @@
         <p>AWG Chain Easy is a web control panel for a VPN gateway supporting AmneziaWG 3, AmneziaWG 2 and WireGuard. It lets you create client profiles, export configurations and QR codes, and monitor handshakes and accumulated traffic.</p>
         <p>The gateway can send client traffic directly to the Internet or through imported upstream tunnels. Domain and network rules select destinations, while priority-based failover checks upstream availability and switches routes when needed.</p>
         <p>This installation includes local enhancements: client routing modes, persistent statistics, Russian and English interfaces, Amnezia QR export and settings managed from the web interface.</p>
-        <dl class="about-versions"><dt>Fork version</dt><dd id="about-version">—</dd><dt>Build commit</dt><dd id="about-build-commit">—</dd><dt>Fork build</dt><dd id="about-build">—</dd><dt>AmneziaWG runtime</dt><dd id="about-awg">—</dd></dl>
+        <dl class="about-versions"><dt>Fork version</dt><dd id="about-version">—</dd><dt>Build commit</dt><dd id="about-build-commit">—</dd><dt>AmneziaWG runtime</dt><dd id="about-awg">—</dd></dl>
         <p><span>Fork repository</span>: <a href="https://github.com/AlekseyShepelev/awg-chain-easy-mod" target="_blank" rel="noopener noreferrer">AlekseyShepelev/awg-chain-easy-mod</a></p>
         <div class="about-upstream"><h3>Original project</h3><p><span>Repository</span>: <a href="https://github.com/artyomb/awg-chain-easy" target="_blank" rel="noopener noreferrer">artyomb/awg-chain-easy</a><br><span>Project author</span>: <a href="https://github.com/artyomb" target="_blank" rel="noopener noreferrer">artyomb</a></p><dl class="about-versions"><dt>Base commit</dt><dd id="about-commit">—</dd></dl></div>
       </section>
@@ -320,7 +320,7 @@
   <dialog id="config-dialog" class="dialog" aria-labelledby="config-title">
     <div class="dialog-heading"><h2 id="config-title">Client config</h2><button id="close-config-button" class="button secondary compact" type="button">Close</button></div>
     <select id="export-mode" aria-label="Export" hidden>
-      <option value="qr">QR</option>
+      <option value="qr">QR code</option>
       <option value="vpn">Key (vpn://)</option>
       <option value="conf">Config (.conf)</option>
     </select>

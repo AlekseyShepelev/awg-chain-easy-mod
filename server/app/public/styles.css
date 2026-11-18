@@ -298,9 +298,17 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 #new-policy-button { min-height: 40px; }
 
 .dialog.export-dialog {
-  width: min(680px, calc(100% - 32px));
-  height: min(720px, calc(100dvh - 32px));
+  width: min(530px, calc(100% - 32px));
+  height: min(620px, calc(100dvh - 32px));
   overflow: auto;
 }
+.export-dialog[open] { display: flex; flex-direction: column; }
+.export-dialog > * { flex-shrink: 0; }
 .export-dialog #export-mode { margin-top: var(--space-4); }
+.export-dialog .config-text {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+}
+.export-dialog .qr-surface img { max-width: min(420px, max(140px, calc(100dvh - 220px))); }
 .status-column > :not([data-label]) { width: fit-content; max-width: 100%; }
