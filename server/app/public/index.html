@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css">
-  <script defer src="/app.js?v=2.1.2"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.1.3">
+  <script defer src="/app.js?v=2.1.3"></script>
 </head>
 <body>
   <header class="global-header">
@@ -319,11 +319,11 @@
 
   <dialog id="config-dialog" class="dialog" aria-labelledby="config-title">
     <div class="dialog-heading"><h2 id="config-title">Client config</h2><button id="close-config-button" class="button secondary compact" type="button">Close</button></div>
-    <div id="export-tabs" class="segmented-switch" role="group" aria-label="Export" hidden>
-      <button class="button compact" type="button" data-export="conf">Config (.conf)</button>
-      <button class="button compact" type="button" data-export="vpn">Key (vpn://)</button>
-      <button class="button compact" type="button" data-export="qr">QR</button>
-    </div>
+    <select id="export-mode" aria-label="Export" hidden>
+      <option value="qr">QR</option>
+      <option value="vpn">Key (vpn://)</option>
+      <option value="conf">Config (.conf)</option>
+    </select>
     <div id="export-qr" hidden></div>
     <p id="config-loading" role="status" hidden>Loading configuration…</p>
     <textarea id="config-text" class="code-input config-text" rows="18" aria-label="Client configuration" readonly spellcheck="false" wrap="off" hidden></textarea>

@@ -633,7 +633,7 @@ function openRenameClient(client) {
   elements['rename-name'].select();
 }
 
-const exportTabs = document.querySelector('#export-tabs');
+const exportMode = document.querySelector('#export-mode');
 const exportQr = document.querySelector('#export-qr');
 const qrContent = document.querySelector('#qr-content');
 let exportClient = null;
@@ -643,12 +643,6 @@ function selectClientExport(mode) {
   if (!client) return;
   const qr = mode === 'qr';
   exportQr.hidden = !qr;
-  for (const tab of exportTabs.querySelectorAll('button')) {
-    const selected = tab.dataset.export === mode;
-    tab.setAttribute('aria-pressed', String(selected));
-    tab.classList.toggle('primary', selected);
-    tab.classList.toggle('secondary', !selected);
-  }
   if (!qr) {
     stopQrAnimation();
     elements['qr-image'].removeAttribute('src');
@@ -670,17 +664,17 @@ function selectClientExport(mode) {
   selectQrMode(lastData?.guiSettings?.qrFormat === 'amnezia');
 }
 
-for (const tab of exportTabs.querySelectorAll('button')) {
-  tab.addEventListener('click', () => selectClientExport(tab.dataset.export));
-}
+exportMode.addEventListener('change', () => selectClientExport(exportMode.value));
 
 function openClientExport(client) {
   exportClient = client;
-  exportTabs.hidden = false;
+  exportMode.hidden = false;
+  exportMode.value = 'qr';
+  elements['config-dialog'].classList.add('export-dialog');
   exportQr.append(qrContent);
   text(elements['config-title'], 'Export: {name}', { name: client.name });
   elements['config-dialog'].showModal();
-  selectClientExport('conf');
+  selectClientExport('qr');
 }
 
 async function openClientConfig(client, vpn = false) {
@@ -1075,7 +1069,8 @@ elements['close-config-button'].addEventListener('click', () => elements['config
 elements['config-dialog'].addEventListener('close', () => {
   if (exportClient) {
     exportClient = null;
-    exportTabs.hidden = true;
+    exportMode.hidden = true;
+    elements['config-dialog'].classList.remove('export-dialog');
     exportQr.hidden = true;
     stopQrAnimation();
     elements['qr-image'].removeAttribute('src');

@@ -296,3 +296,11 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 /* Align the standalone action with the 40px segmented switch. */
 [aria-labelledby="policies-title"] > .section-heading > .routing-header-actions { align-items: center; }
 #new-policy-button { min-height: 40px; }
+
+.dialog.export-dialog {
+  width: min(680px, calc(100% - 32px));
+  height: min(720px, calc(100dvh - 32px));
+  overflow: auto;
+}
+.export-dialog #export-mode { margin-top: var(--space-4); }
+.status-column > :not([data-label]) { width: fit-content; max-width: 100%; }
