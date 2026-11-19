@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.1.9">
-  <script defer src="/app.js?v=2.1.9"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.0">
+  <script defer src="/app.js?v=2.2.0"></script>
 </head>
 <body>
   <header class="global-header">
@@ -113,32 +113,21 @@
           <p id="default-route-error" class="form-error" role="alert"></p>
         </section>
 
-        <section class="create-panel" aria-labelledby="failover-title">
-          <div class="section-heading">
-            <div><h2 id="failover-title">Default-route failover</h2><p id="failover-status" role="status">Disabled</p></div>
-            <div class="row-actions"><button id="failover-return" class="button secondary compact" type="button" hidden>Use higher priority</button><button id="failover-refresh" class="button secondary compact" type="button">Refresh</button></div>
-          </div>
-          <div id="failover-health-table" class="table-wrap" hidden>
-            <table aria-label="Failover health checks">
-              <thead><tr><th scope="col">Upstream</th><th scope="col">Failover priority</th><th scope="col">Health</th><th scope="col">Last checked</th><th scope="col">Last successful check</th></tr></thead>
-              <tbody id="failover-health"></tbody>
-            </table>
-          </div>
-          <p id="failover-runtime-error" class="form-error" role="alert" hidden></p>
-
-        </section>
-
-
-
         <section class="resource-section spaced" aria-labelledby="upstreams-title">
-          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels</h2><p>Each upstream has an isolated network namespace, so configs can share tunnel addresses.</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Import</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
+          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Import</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Failover priority</th><th>Interface</th><th>Endpoint</th><th>Connection</th><th>Handshake</th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>
+              <thead><tr><th>Server</th><th>Failover priority</th><th>Availability</th><th>Connection</th><th>Handshake</th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>
               <tbody id="upstream-rows"></tbody>
             </table>
-            <div id="upstream-empty" class="empty-state"><p>No upstream tunnels configured.</p></div>
+            <div id="upstream-empty" class="empty-state" hidden><p>No upstream tunnels configured.</p></div>
           </div>
+          <div class="section-heading upstream-footer">
+            <p>Availability checks Internet access through the tunnel. Connection indicates handshake status.</p>
+            <button id="failover-return" class="button secondary compact" type="button" hidden>Use higher priority</button>
+          </div>
+          <p id="failover-runtime-error" class="form-error upstream-footer" role="alert" hidden></p>
+          <p id="upstream-refresh-error" class="form-error upstream-footer" role="alert" hidden></p>
         </section>
 
 

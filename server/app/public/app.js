@@ -19,6 +19,23 @@
     "Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.": "При сохранении включённый туннель перезапустится. Затем проверьте, появился ли свежий обмен ключами.",
     "Unable to apply upstream configuration; previous configuration restored": "Не удалось применить конфигурацию. Предыдущая конфигурация восстановлена.",
     "Configuration file is too large": "Файл конфигурации слишком большой",
+    "Upstream tunnels and failover": "Выходные туннели и резервирование",
+    "Loading tunnels\u2026": "Загрузка туннелей…",
+    "Server": "Сервер",
+    "Availability": "Доступность",
+    "Current": "Текущий",
+    "Preferred": "Предпочтительный",
+    "Backup": "Резервный",
+    "Details": "Подробности",
+    "Current route: {name}": "Текущий маршрут: {name}",
+    "No route selected": "Маршрут не выбран",
+    "Route blocked": "Маршрут заблокирован",
+    "Failover enabled": "Резервирование включено",
+    "Failover disabled": "Резервирование выключено",
+    "Backup route in use": "Используется резервный маршрут",
+    "Checks disabled": "Проверка выключена",
+    "Excluded from failover": "Исключён из резервирования",
+    "Availability checks Internet access through the tunnel. Connection indicates handshake status.": "Доступность — результат проверки выхода в интернет через туннель. Подключение — состояние обмена ключами.",
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -201,7 +218,7 @@ const elements = Object.fromEntries([
   'confirm-action-dialog', 'confirm-action-title', 'confirm-action-message', 'confirm-action-cancel', 'confirm-action-accept', 'login-view', 'app-view', 'logout-button', 'login-form', 'password', 'login-error',
   'new-client-button', 'create-panel', 'cancel-create-button', 'create-form', 'client-name', 'client-protocol',
   'create-error', 'page-message', 'endpoint-value', 'client-count', 'connected-count', 'amneziawg-version',
-  'client-rows', 'empty-state', 'empty-create-button', 'refresh-button', 'reset-statistics-button', 'upstreams-refresh', 'reset-upstream-statistics', 'failover-refresh', 'last-updated',
+  'client-rows', 'empty-state', 'empty-create-button', 'refresh-button', 'reset-statistics-button', 'upstreams-refresh', 'reset-upstream-statistics', 'last-updated',
   'qr-dialog', 'qr-title', 'qr-image', 'qr-vpn-image', 'qr-vpn-status', 'qr-conf-panel', 'qr-amnezia-panel',  'close-qr-button',
   'rename-dialog', 'rename-title', 'close-rename', 'rename-form', 'rename-name', 'rename-route', 'rename-route-hint', 'client-route', 'client-route-hint', 'rename-error', 'rename-save', 'config-copy', 'config-vpn-text', 'config-download', 'config-dialog', 'config-title', 'config-text', 'config-loading', 'config-error', 'close-config-button',
   'peer-connection-dialog', 'peer-connection-title', 'close-peer-connection', 'peer-connection-form',
@@ -213,7 +230,7 @@ const elements = Object.fromEntries([
   'primary-nav', 'clients-page', 'routing-page', 'settings-page', 'about-page', 'about-version', 'about-commit', 'about-build-commit', 'about-awg', 'server-settings-form', 'settings-server-name', 'server-settings-message', 'dns-settings-form', 'dns-settings-rows', 'dns-settings-message', 'dns-add', 'dns-test', 'qr-settings-form', 'settings-qr-format', 'qr-settings-message', 'new-upstream-button', 'new-policy-button',
   'dns-status', 'dns-upstream', 'upstream-count', 'policy-count',
   'default-route-form', 'default-route', 'default-route-error',
-  'failover-status', 'failover-health', 'failover-health-table', 'failover-runtime-error', 'failover-settings', 'failover-form', 'failover-fields',
+  'failover-status', 'failover-runtime-error', 'failover-settings', 'failover-form', 'failover-fields',
   'failover-enabled', 'failover-enable', 'failover-disable', 'failover-interval', 'failover-timeout', 'failover-failures',
   'failover-recovery', 'failover-targets', 'failover-auto-return', 'failover-error', 'failover-return',
   'upstream-create-panel', 'cancel-upstream-button', 'upstream-form', 'upstream-name',
@@ -507,7 +524,29 @@ function openUpstreamPriority(upstream) {
   elements['upstream-priority-value'].focus();
 }
 
-function renderUpstreams(upstreams) {
+// Keep only the last displayed probe timestamps when checks are switched off.
+const upstreamCheckTimes = new Map();
+
+function renderUpstreams(routing) {
+  const { upstreams, failover } = routing;
+  for (const id of upstreamCheckTimes.keys()) {
+    if (!upstreams.some((item) => item.id === id)) upstreamCheckTimes.delete(id);
+  }
+  const enabled = failover.config.enabled;
+  const effective = routing.effectiveDefaultRoute;
+  const current = effective?.type === 'upstream' ? upstreams.find((item) => item.id === effective.upstreamId) : null;
+  const priorities = upstreams.filter((item) => item.enabled && item.failoverPriority != null).map((item) => item.failoverPriority);
+  const preferred = Math.min(...priorities);
+  const route = current ? t('Current route: {name}', { name: current.name })
+    : effective?.type === 'direct' ? t('Current route: {name}', { name: routeLabel(effective, upstreams) })
+      : t(effective?.type === 'blocked' ? 'Route blocked' : 'No route selected');
+  const onBackup = enabled && current?.failoverPriority > preferred;
+  elements['failover-status'].textContent = [route, t(enabled ? 'Failover enabled' : 'Failover disabled'),
+    ...(onBackup ? [t('Backup route in use')] : [])].join(' · ');
+  const open = new Set([...elements['upstream-rows'].querySelectorAll('details[open]')].map((item) => item.closest('tr').dataset.upstreamId));
+  const active = document.activeElement;
+  const focusRow = active?.closest('#upstream-rows tr');
+  const focusIndex = focusRow ? [...focusRow.querySelectorAll('button, a, summary')].indexOf(active) : -1;
   elements['upstream-rows'].replaceChildren();
   elements['upstream-empty'].hidden = upstreams.length !== 0;
   for (const upstream of upstreams) {
@@ -536,7 +575,7 @@ function renderUpstreams(upstreams) {
       catch (error) { showMessage(error.message); }
     }));
     const upstreamButtons = [...actions.children]; actions.replaceChildren();
-    for (const group of [upstreamButtons.slice(0, 2), upstreamButtons.slice(2)]) {
+    for (const group of [upstreamButtons.slice(0, 3), upstreamButtons.slice(3)]) {
       const line = document.createElement('div'); line.className = 'upstream-action-line'; line.append(...group); actions.append(line);
     }
     const statusStyle = upstream.status === 'up' ? 'running' : upstream.status === 'disabled' ? 'disabled' : 'failed';
@@ -558,23 +597,41 @@ function renderUpstreams(upstreams) {
     portValue.className = 'secondary-value';
     portValue.textContent = t('Local UDP {port}{mode}', { port: upstream.listenPort || '—', mode: t(upstream.configuredListenPort ? ' · fixed' : ' · automatic') });
     if (upstream.configuredListenPort && !upstream.portInPublishedRange) portValue.textContent += t(' · outside published range');
-    endpointInfo.append(endpointValue, portValue);
+    const name = document.createElement('strong');
+    name.textContent = upstream.name;
+    const heading = document.createElement('div');
+    heading.className = 'upstream-name';
+    heading.append(name);
+    if (current?.id === upstream.id) heading.append(stateBadge('Current', 'running'));
+    if (enabled && upstream.enabled && upstream.failoverPriority != null) {
+      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Preferred' : 'Backup', 'disabled'));
+    }
+    const details = document.createElement('details');
+    details.open = open.has(upstream.id);
+    const summary = document.createElement('summary');
+    text(summary, 'Details');
+    interfaceInfo.append(portValue);
+    details.append(summary, interfaceInfo);
+    endpointInfo.append(heading, endpointValue, details);
     const priority = button(upstream.failoverPriority == null ? 'Excluded' : String(upstream.failoverPriority), 'secondary', () => openUpstreamPriority(upstream));
     priority.setAttribute('aria-label', t('Edit failover priority for {name}', { name: upstream.name }));
     const row = document.createElement('tr');
     row.classList.toggle('row-disabled', !upstream.enabled);
     row.append(
-      cell('Name', upstream.name, 'client-name'),
+      cell('Server', endpointInfo, 'upstream-server'),
       cell('Failover priority', priority, 'numeric'),
-      cell('Interface', interfaceInfo, 'interface-column'),
-      cell('Endpoint', endpointInfo),
+      cell('Availability', upstreamAvailability(upstream, failover), 'connection-column'),
       cell('Connection', upstreamConnectionBadge(upstream), 'connection-column'),
       cell('Handshake', time(upstream.latestHandshakeAt), 'numeric'),
       cell('Transfer', transfer),
       cell('Actions', actions, 'actions-column'),
     );
     if (upstream.error) row.title = t(upstream.error);
+    row.dataset.upstreamId = upstream.id;
     elements['upstream-rows'].append(row);
+    if (focusRow?.dataset.upstreamId === upstream.id && focusIndex >= 0) {
+      row.querySelectorAll('button, a, summary')[focusIndex]?.focus({ preventScroll: true });
+    }
   }
 }
 
@@ -632,43 +689,45 @@ function renderRouting(routing) {
   elements['policy-count'].textContent = routing.policies.length;
   updateRouteSelect(elements['default-route'], routing.upstreams, defaultRouteDirty ? undefined : routeValue(routing.defaultRoute));
   updateRouteSelect(elements['policy-route'], routing.upstreams);
-  renderUpstreams(routing.upstreams);
+  renderUpstreams(routing);
   renderPolicies(routing.policies, routing.upstreams);
   renderFailover(routing);
 }
 
+function upstreamAvailability(upstream, {config, health}) {
+  const sample = health[upstream.id];
+  if (config.enabled && sample) {
+    upstreamCheckTimes.set(upstream.id, { checkedAt: sample.checkedAt, lastSuccessAt: sample.lastSuccessAt });
+  }
+  const times = config.enabled ? sample : upstreamCheckTimes.get(upstream.id);
+  const status = sample?.status || 'checking';
+  const retrying = status === 'healthy' && sample.failures > 0;
+  const checkable = config.enabled && upstream.enabled && upstream.failoverPriority != null;
+  const label = !config.enabled ? t('Checks disabled') : !upstream.enabled ? t('Disabled')
+    : upstream.failoverPriority == null ? t('Excluded from failover')
+      : retrying ? t('Retrying ({n}/{total})', { n: sample.failures, total: config.failureThreshold })
+        : status === 'checking' ? t('Checking ({n}/{total})', { n: sample?.successes || 0, total: config.recoveryThreshold })
+          : t(status[0].toUpperCase() + status.slice(1));
+  const tone = !checkable ? 'disabled' : status === 'healthy' && !retrying ? 'running'
+    : ['unavailable', 'unhealthy'].includes(status) ? 'failed' : 'warning';
+  const box = document.createElement('div');
+  box.className = 'resource-details';
+  box.append(stateBadge(label, tone));
+  for (const [key, value, fallback] of [['Last checked', times?.checkedAt, 'Not yet checked'],
+      ['Last successful check', times?.lastSuccessAt, 'Never succeeded']]) {
+    const line = document.createElement('span');
+    line.className = 'secondary-value';
+    line.textContent = t(key) + ': ' + (value ? new Date(value).toLocaleTimeString(I18N.locale) : t(fallback));
+    box.append(line);
+  }
+  return box;
+}
+
 function renderFailover(routing) {
   if (!routing.failover) return;
-  const { config, health, selectedUpstreamId, preferredUpstreamIds, error } = routing.failover;
+  const { config, selectedUpstreamId, preferredUpstreamIds, error } = routing.failover;
   const candidates = routing.upstreams.filter((upstream) => upstream.failoverPriority != null)
     .map((upstream) => ({ upstreamId: upstream.id, priority: upstream.failoverPriority }));
-  const name = (id) => routing.upstreams.find((item) => item.id === id)?.name || t('Not selected');
-  const effective = routing.effectiveDefaultRoute;
-  elements['failover-status'].textContent = !config.enabled ? t('Disabled')
-    : effective?.type === 'blocked' ? t('Traffic blocked — no usable selected upstream')
-      : t('Using {name} · priority {priority}', { name: name(selectedUpstreamId), priority: candidates.find((item) => item.upstreamId === selectedUpstreamId)?.priority });
-  elements['failover-health-table'].hidden = !config.enabled;
-  elements['failover-health'].replaceChildren();
-  const checkTime = (value) => {
-    if (!value) return t('Not yet checked');
-    const time = document.createElement('time');
-    time.dateTime = value; time.title = new Date(value).toLocaleString(I18N.locale);
-    time.textContent = new Date(value).toLocaleTimeString(I18N.locale);
-    return time;
-  };
-  for (const { upstreamId, priority } of candidates.sort((a, b) => a.priority - b.priority)) {
-    const sample = health[upstreamId];
-    const status = sample?.status || 'checking';
-    const retrying = status === 'healthy' && sample.failures > 0;
-    const label = retrying ? t('Retrying ({n}/{total})', { n: sample.failures, total: config.failureThreshold })
-      : status === 'checking' ? t('Checking ({n}/{total})', { n: sample?.successes || 0, total: config.recoveryThreshold }) : t(status[0].toUpperCase() + status.slice(1));
-    const tone = status === 'healthy' && !retrying ? 'running' : ['unavailable', 'unhealthy'].includes(status) ? 'failed' : 'warning';
-    const row = document.createElement('tr');
-    row.append(cell('Upstream', `${name(upstreamId)}${selectedUpstreamId === upstreamId ? t(' (selected)') : ''}`, 'client-name'),
-      cell('Failover priority', String(priority), 'numeric'), cell('Health', stateBadge(label, tone)),
-      cell('Last checked', checkTime(sample?.checkedAt)), cell('Last successful check', sample?.lastSuccessAt ? checkTime(sample.lastSuccessAt) : t('Never succeeded')));
-    elements['failover-health'].append(row);
-  }
   text(elements['failover-runtime-error'], error || '');
   elements['failover-runtime-error'].hidden = !error;
   const selectedPriority = candidates.find((item) => item.upstreamId === selectedUpstreamId)?.priority;
@@ -862,6 +921,8 @@ function renderClients(clients) {
   }
 }
 
+const upstreamRefreshError = document.querySelector('#upstream-refresh-error');
+
 async function refresh() {
   try {
     const [status, clients, routing, guiSettings] = await Promise.all([
@@ -872,8 +933,12 @@ async function refresh() {
     ]);
     lastData = { status, clients, routing, guiSettings };
     renderData(lastData);
+    upstreamRefreshError.hidden = true;
     showMessage('');
   } catch (error) {
+    text(upstreamRefreshError, error.message);
+    upstreamRefreshError.hidden = false;
+    if (!lastData) text(elements['failover-status'], 'Unknown');
     if (!elements['app-view'].hidden) showMessage(error.message);
   }
 }
@@ -1000,17 +1065,11 @@ elements['reset-upstream-statistics'].addEventListener('click', async () => {
   finally { elements['reset-upstream-statistics'].disabled = false; }
 });
 
-for (const id of ['upstreams-refresh', 'failover-refresh']) {
-  elements[id].addEventListener('click', async () => {
-    elements['upstreams-refresh'].disabled = true;
-    elements['failover-refresh'].disabled = true;
-    try { await refresh(); }
-    finally {
-      elements['upstreams-refresh'].disabled = false;
-      elements['failover-refresh'].disabled = false;
-    }
-  });
-}
+elements['upstreams-refresh'].addEventListener('click', async () => {
+  elements['upstreams-refresh'].disabled = true;
+  try { await refresh(); }
+  finally { elements['upstreams-refresh'].disabled = false; }
+});
 
 let qrTimer = null;
 let qrRequest = 0;

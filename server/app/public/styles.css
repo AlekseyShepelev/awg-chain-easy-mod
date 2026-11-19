@@ -323,3 +323,11 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 .export-dialog .qr-surface img { width: min(420px, 100cqw, 100cqh); }
 .export-dialog .vpn-preview { max-height: none; overflow: auto; }
 .status-column > :not([data-label]) { width: fit-content; max-width: 100%; }
+
+.upstream-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.upstream-name strong { white-space: nowrap; }
+.upstream-footer { padding: var(--space-3) var(--space-4); flex-wrap: wrap; }
+#upstream-rows details summary { cursor: pointer; }
+.row-disabled .upstream-server { opacity: 1; }
+.row-disabled .upstream-server :is(.upstream-name, .mono, summary, .secondary-value) { opacity: .45; }
+.upstream-name strong { white-space: normal; overflow-wrap: anywhere; }
