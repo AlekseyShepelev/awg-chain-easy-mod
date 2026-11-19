@@ -93,11 +93,6 @@ function normalizeFailover(input, state) {
     ids.add(upstreamId);
     return { upstreamId, priority };
   });
-  if (config.enabled) {
-    if (state.defaultRoute.type !== 'upstream' || !Object.hasOwn(state.upstreams, state.defaultRoute.upstreamId)) throw invalid('Select an existing upstream as the default route before enabling failover');
-    if (ids.size < 2) throw invalid('Select at least two failover candidates');
-    if (!ids.has(state.defaultRoute.upstreamId)) throw invalid('Include the saved default upstream in failover candidates');
-  }
   return config;
 }
 

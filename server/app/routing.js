@@ -644,7 +644,7 @@ class RoutingManager {
     this.failoverGeneration += 1;
     this.failoverError = null;
     this.failover = this.state.failover?.enabled
-      ? new FailoverState(this.failoverConfig(), this.state.defaultRoute.upstreamId, this.state.failoverSelectedUpstreamId) : null;
+      ? new FailoverState({ ...this.failoverConfig(), candidates: this.enabledCandidates() }, undefined, this.state.failoverSelectedUpstreamId) : null;
     if (preserveHealth && previous && this.failover) {
       const sameChecks = ['targets', 'failureThreshold', 'recoveryThreshold', 'intervalSeconds', 'timeoutSeconds']
         .every((key) => JSON.stringify(previous.config[key]) === JSON.stringify(this.failover.config[key]));
@@ -731,11 +731,36 @@ class RoutingManager {
     this.appliedDefaultMark = mark;
   }
 
-  async saveFailoverConfig(config) {
+  enabledCandidates(exclude = null) {
+    return failoverCandidates(this.state).filter(({ upstreamId }) =>
+      upstreamId !== exclude && this.state.upstreams[upstreamId].enabled)
+      .sort((a, b) => a.priority - b.priority);
+  }
+
+  assertUniquePriority(priority, id) {
+    const other = Object.values(this.state.upstreams).find(item => item.id !== id && item.failoverPriority === priority);
+    if (priority != null && other) throw httpError(`Priority is already used by ${other.name}`, 409);
+  }
+
+  fixedFallback(remaining) {
+    return remaining.length ? { type: 'upstream', upstreamId: remaining[0].upstreamId } : { type: 'blocked' };
+  }
+
+  async setRouteMode(input) {
+    return this.enqueue(async () => {
+      if (input?.mode !== 'fixed' && input?.mode !== 'automatic') throw httpError('Invalid route mode');
+      const enabled = input.mode === 'automatic';
+      if (enabled && this.enabledCandidates().length < 2) throw httpError('Enable at least two tunnels with priorities');
+      const route = enabled ? this.state.defaultRoute : validateRoute(input.route, this.state);
+      await this.saveFailoverConfig({ ...this.failoverConfig(), enabled }, route);
+    });
+  }
+
+  async saveFailoverConfig(config, route = this.state.defaultRoute) {
     const previous = this.state;
     const previousMonitor = this.failover;
-    this.state = withFailoverConfig(this.state, config);
-    this.state.failoverSelectedUpstreamId = new FailoverState(config, this.state.defaultRoute.upstreamId,
+    this.state = withFailoverConfig({ ...this.state, defaultRoute: route }, config);
+    this.state.failoverSelectedUpstreamId = new FailoverState({ ...config, candidates: config.candidates.filter(item => this.state.upstreams[item.upstreamId].enabled) }, undefined,
       previous.failover?.enabled ? previousMonitor?.selectedId ?? previous.failoverSelectedUpstreamId : undefined).selectedId || null;
     try { await this.save(); }
     catch (error) { this.state = previous; throw error; }
@@ -746,6 +771,7 @@ class RoutingManager {
       await this.save();
       this.failover = previousMonitor;
       this.resetFailover(true);
+      this.applyDefaultRoute();
       throw error;
     }
   }
@@ -756,6 +782,11 @@ class RoutingManager {
       const merged = { ...this.failoverConfig(), ...input };
       if (Object.hasOwn(input, 'backupUpstreamId') && !Object.hasOwn(input, 'candidates')) delete merged.candidates;
       const config = normalizeFailover(merged, this.state);
+      if (config.enabled && config.candidates.filter(item => this.state.upstreams[item.upstreamId].enabled).length < 2) throw httpError('Enable at least two tunnels with priorities');
+      for (const item of config.candidates) {
+        if (this.state.upstreams[item.upstreamId].failoverPriority !== item.priority &&
+            config.candidates.some(other => other.upstreamId !== item.upstreamId && other.priority === item.priority)) throw httpError('Failover priorities must be unique', 409);
+      }
       await this.saveFailoverConfig(config);
     });
   }
@@ -764,10 +795,15 @@ class RoutingManager {
     return this.enqueue(async () => {
       if (!Object.hasOwn(this.state.upstreams, id)) throw httpError('Upstream not found', 404);
       const priority = failoverPriority(value);
+      if (this.state.upstreams[id].failoverPriority !== priority) this.assertUniquePriority(priority, id);
       const candidates = failoverCandidates(this.state).filter((candidate) => candidate.upstreamId !== id);
       if (priority !== null) candidates.push({ upstreamId: id, priority });
       const config = normalizeFailover({ ...this.state.failover, candidates }, this.state);
-      await this.saveFailoverConfig(config);
+      const remaining = this.enabledCandidates(id);
+      const fallback = config.enabled && priority == null && this.state.upstreams[id].enabled &&
+        this.state.upstreams[id].failoverPriority != null && remaining.length < 2;
+      await this.saveFailoverConfig(fallback ? { ...config, enabled: false } : config,
+        fallback ? this.fixedFallback(remaining) : this.state.defaultRoute);
     });
   }
 
@@ -842,6 +878,7 @@ class RoutingManager {
       this.validateUpstreamConfig(config);
       const importedPriority = priorityFromConfig(config);
       const priority = requestedPriority === undefined ? importedPriority : failoverPriority(requestedPriority);
+      this.assertUniquePriority(priority);
       if (requestedPort !== undefined) config = withListenPort(config, this.validatePublishedPort(requestedPort));
       const details = this.validateUpstreamConfig(config);
       this.assertUpstreamPortAvailable(details.listenPort);
@@ -874,7 +911,13 @@ class RoutingManager {
     return this.enqueue(async () => {
       const upstream = this.state.upstreams[id];
       if (!upstream) throw httpError('Upstream not found', 404);
+      if (!enabled && upstream.enabled && upstream.failoverPriority != null && this.state.failover.enabled) {
+        const remaining = this.enabledCandidates(id);
+        if (remaining.length < 2) await this.saveFailoverConfig({ ...this.failoverConfig(), enabled: false }, this.fixedFallback(remaining));
+      }
+      this.state.upstreams[id].enabled = enabled;
       upstream.enabled = enabled;
+      this.resetFailover(true);
       try {
         if (enabled) await this.startUpstream(upstream); else await this.stopUpstream(upstream);
       } catch (error) {
@@ -894,6 +937,10 @@ class RoutingManager {
       if (this.clientRoutes().some((client) => client.egress === 'upstream' && client.upstreamId === id)) throw httpError('Upstream is assigned to a client', 409);
       if (this.state.defaultRoute.type === 'upstream' && this.state.defaultRoute.upstreamId === id) throw httpError('Upstream is used by the default route', 409);
       if (Object.values(this.state.policies).some((policy) => policy.route.type === 'upstream' && policy.route.upstreamId === id)) throw httpError('Upstream is used by a routing policy', 409);
+      const remaining = this.enabledCandidates(id);
+      if (upstream.enabled && upstream.failoverPriority != null && this.state.failover.enabled && remaining.length < 2) {
+        await this.saveFailoverConfig({ ...this.failoverConfig(), enabled: false }, this.fixedFallback(remaining));
+      }
       await this.stopUpstream(upstream);
       delete this.state.upstreams[id];
       this.runtime.delete(id);
@@ -959,7 +1006,7 @@ class RoutingManager {
   async setDefaultRoute(route) {
     return this.enqueue(async () => {
       const next = validateRoute(route, this.state);
-      if (this.state.failover?.enabled && next.type !== 'upstream') throw httpError('Disable failover before choosing Direct or Blocked as the default route');
+      if (this.state.failover?.enabled) throw httpError('Disable failover before choosing Direct or Blocked as the default route');
       normalizeFailover(this.failoverConfig(), { ...this.state, defaultRoute: next });
       this.state.defaultRoute = next;
       this.state.failoverSelectedUpstreamId = next.upstreamId || null;

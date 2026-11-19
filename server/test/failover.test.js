@@ -18,11 +18,8 @@ test('settings require distinct existing candidates and bounded priorities', () 
   assert.deepEqual(normalizeFailover({}, state()), DEFAULTS);
   for (const upstreamId of ['missing', '__proto__']) assert.throws(() => config({ candidates: [{ upstreamId, priority: 1 }] }), /existing/);
   assert.throws(() => config({ candidates: [...candidates(), candidates()[0]] }), /only once/);
-  assert.throws(() => config({ candidates: candidates().slice(0, 1) }), /at least two/);
-  assert.throws(() => config({ candidates: candidates([10, 20, 30]).slice(1) }), /saved default/);
   for (const priority of [0, -1, 10001, 1.5, '10', null]) assert.throws(() => config({ candidates: candidates([priority, 20]) }), /integer/);
   for (const value of [null, {}, [null], [[]], [{ ...candidates()[0], extra: true }]]) assert.throws(() => config({ candidates: value }), /candidates|candidate/);
-  assert.throws(() => normalizeFailover(config(), { ...state(), defaultRoute: { type: 'direct' } }), /default route/);
   assert.throws(() => config({ timeoutSeconds: 11 }), /interval/);
   assert.throws(() => config({ failureThreshold: 0 }), /failureThreshold/);
   assert.throws(() => config({ autoFailback: 'false' }), /boolean/);
@@ -41,7 +38,6 @@ test('legacy primary/backup settings migrate to priorities 10/20 with selection 
   }
   assert.deepEqual(normalizeFailover({ enabled: false, backupUpstreamId: null }, state()), DEFAULTS);
   assert.deepEqual(normalizeFailover({ enabled: false, backupUpstreamId: 'primary' }, state()).candidates, candidates().slice(0, 1));
-  assert.throws(() => normalizeFailover({ enabled: true, backupUpstreamId: 'primary' }, state()), /at least two/);
   assert.throws(() => normalizeFailover({ enabled: true, backupUpstreamId: '__proto__' }, state()), /existing/);
 });
 
@@ -198,7 +194,7 @@ test('editing priority or return options keeps health and selected peer; probe c
   routing.state.failoverSelectedUpstreamId = 'backup';
   routing.failover.selectedId = 'backup';
   result(routing.failover, 'backup', false, 3);
-  await routing.setFailover({ candidates: candidates([10, 20, 20, 30]), autoFailback: true });
+  await routing.setFailover({ candidates: candidates([10, 20, 21, 30]), autoFailback: true });
   assert.equal(routing.failover.selectedId, 'backup');
   assert.equal(routing.failover.health.get('backup').healthy, false, 'An edit must not resurrect an unhealthy selection');
   result(routing.failover, 'backup', true, 3);
@@ -235,7 +231,7 @@ test('removing the active candidate blocks an untested replacement until recover
 
 test('prioritized tunnels can be removed while the saved default stays protected', async () => {
   const routing = manager();
-  await assert.rejects(routing.setDefaultRoute({ type: 'upstream', upstreamId: 'peer' }), /saved default/);
+  await assert.rejects(routing.setDefaultRoute({ type: 'upstream', upstreamId: 'peer' }), /Disable failover/);
   routing.state.failover.enabled = false;
   routing.stopUpstream = async () => {};
   routing.reconcile = async () => {};
@@ -247,7 +243,7 @@ test('prioritized tunnels can be removed while the saved default stays protected
 });
 
 test('priority lists migrate into upstream metadata without changing selection, routing, or return mode', () => {
-  for (const legacy of [config({ candidates: candidates([10, 20, 20, 30]), autoFailback: true }), { enabled: true, backupUpstreamId: 'backup', autoFailback: true }]) {
+  for (const legacy of [config({ candidates: candidates([10, 20, 21, 30]), autoFailback: true }), { enabled: true, backupUpstreamId: 'backup', autoFailback: true }]) {
     const original = { ...state(), failover: legacy, failoverSelectedUpstreamId: 'backup' };
     const saved = JSON.stringify(original);
     const migrated = migrateFailover(original);
@@ -288,18 +284,23 @@ test('per-upstream priority saves metadata, retains health and selection, and ne
   routing.stopUpstream = routing.startUpstream = routing.reconcile = () => { throw new Error('Unexpected tunnel or full routing update'); };
   result(routing.failover, 'primary', true, 3);
   const health = routing.failover.health.get('primary');
-  await Promise.all([routing.setUpstreamPriority('backup', 25), routing.setUpstreamPriority('peer', 25)]);
-  assert.deepEqual(failoverCandidates(routing.state), candidates([10, 25, 25]));
+  await routing.setUpstreamPriority('backup', 25);
+  await assert.rejects(routing.setUpstreamPriority('peer', 25), /already used/);
+  await routing.setUpstreamPriority('peer', 26);
+  assert.deepEqual(failoverCandidates(routing.state), candidates([10, 25, 26]));
   assert.equal(Object.hasOwn(routing.state.failover, 'candidates'), false);
   assert.equal(routing.failover.selectedId, 'primary');
   assert.deepEqual(routing.failover.health.get('primary'), health);
   await routing.setUpstreamPriority('peer', null);
   assert.equal(routing.state.upstreams.peer.failoverPriority, null);
-  await assert.rejects(routing.setUpstreamPriority('backup', null), /at least two/);
-  await assert.rejects(routing.setUpstreamPriority('primary', null), /at least two|saved default/);
+
   await assert.rejects(routing.setUpstreamPriority('missing', 20), /not found/);
   await assert.rejects(routing.setUpstreamPriority('backup', 10001), /integer/);
   assert.equal(routing.state.upstreams.backup.failoverPriority, 25);
+  await routing.setUpstreamPriority('backup', null);
+  assert.equal(routing.state.failover.enabled, false);
+  assert.deepEqual(routing.state.defaultRoute, { type: 'upstream', upstreamId: 'primary' });
+  await assert.rejects(routing.setRouteMode({ mode: 'automatic' }), /at least two/);
 });
 
 test('failed priority persistence or route application restores metadata, selection, and monitor', async () => {
@@ -335,15 +336,14 @@ test('downloads use metadata priority while preserving the original imported con
   await assert.rejects(routing.exportUpstreamConfig('missing'), /not found/);
 });
 
-test('editing the saved default cannot bypass failed health or recovery checks', async () => {
+test('automatic mode chooses by priority independently of fixed direction', async () => {
   const routing = manager();
   routing.stopping = true;
-  routing.reconcile = async () => {};
-  result(routing.failover, 'backup', false, 3);
-  await routing.setDefaultRoute({ type: 'upstream', upstreamId: 'backup' });
-  assert.deepEqual(routing.effectiveDefaultRoute(), { type: 'blocked' });
-  result(routing.failover, 'backup', true, 2);
-  assert.deepEqual(routing.effectiveDefaultRoute(), { type: 'blocked' });
-  result(routing.failover, 'backup', true);
-  assert.equal(routing.effectiveDefaultRoute().upstreamId, 'backup');
+  await routing.setRouteMode({ mode: 'fixed', route: { type: 'direct' } });
+  assert.equal(routing.effectiveDefaultRoute().type, 'direct');
+  await routing.setRouteMode({ mode: 'automatic' });
+  assert.equal(routing.state.defaultRoute.type, 'direct');
+  assert.equal(routing.failover.selectedId, 'primary');
+  await routing.setRouteMode({ mode: 'fixed', route: { type: 'blocked' } });
+  assert.equal(routing.effectiveDefaultRoute().type, 'blocked');
 });

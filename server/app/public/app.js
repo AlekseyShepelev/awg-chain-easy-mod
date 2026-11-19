@@ -48,6 +48,26 @@
     'Change the routing rules that use this tunnel before deleting it.': 'Перед удалением измените направление в правилах маршрутизации, использующих этот туннель.',
     'Delete tunnel “{name}”?': 'Удалить туннель «{name}»?',
     'Its imported private configuration will be deleted.': 'Его импортированная приватная конфигурация будет удалена.',
+    "Fixed route": "Фиксированный маршрут",
+    "Automatic failover": "Автоматическое резервирование",
+    "Route mode": "Режим маршрута",
+    "For automatic clients when no routing rule matches.": "Для клиентов в автоматическом режиме, если ни одно правило маршрутизации не подошло.",
+    "Chooses an available tunnel with the lowest priority number.": "Выбирается доступный туннель с наименьшим числом приоритета.",
+    "Changes are not applied.": "Изменения не применены.",
+    "Preferred: {name}": "Предпочтительный: {name}",
+    "Currently used: {name}": "Сейчас используется: {name}",
+    "Saved route: {name}": "Сохранённый маршрут: {name}",
+    "Automatic return: on": "Автовозврат: включён",
+    "Automatic return: off": "Автовозврат: выключен",
+    "Priorities are not used in fixed mode.": "Приоритеты не используются в режиме фиксированного маршрута.",
+    "Traffic exits directly through Server A.": "Трафик выходит через сервер A, минуя выходные туннели.",
+    "Unmatched traffic is blocked.": "Трафик, не соответствующий правилам, блокируется.",
+    "Traffic uses only {name}. If unavailable, traffic is blocked.": "Трафик идёт только через {name}. При недоступности туннеля трафик блокируется.",
+    "Enable at least two tunnels with priorities": "Включите хотя бы два туннеля с заданным приоритетом",
+    "Failover priorities must be unique": "Приоритеты резервирования должны быть уникальны",
+    "Fewer than two eligible tunnels will remain. The route will become fixed on the remaining tunnel, or blocked if none remains.": "Останется меньше двух подходящих туннелей. Маршрут закрепится за оставшимся туннелем, а если его нет — будет заблокирован.",
+    'Priority is already used by {0}': 'Этот приоритет уже используется туннелем {0}',
+    'Some tunnels have the same saved priority. Assign different priorities to remove the tie.': 'У нескольких туннелей одинаковый сохранённый приоритет. Назначьте разные значения.',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -176,7 +196,7 @@
     'Failed to fetch': 'Не удалось связаться с сервером', 'Invalid request origin': 'Недопустимый источник запроса',
   };
   Object.assign(ru, {"A higher-priority upstream must pass fresh recovery checks before switching back": "Перед возвратом приоритетный туннель должен пройти новые проверки восстановления", "AWG 3 requires S1-S4 to be at least 12": "Для AWG3 значения S1–S4 должны быть не меньше 12", "AWG 3.1 toggles must be on or off": "Параметры AWG3.1 должны иметь значение on или off", "Cannot check reserved ports: repair or delete the unreadable upstream configuration first.": "Нельзя проверить занятые порты: исправьте или удалите нечитаемую конфигурацию туннеля", "Clear this upstream’s failover priority before deleting it": "Перед удалением уберите приоритет резервирования этого туннеля", "Client egress must be default, direct, or upstream": "Режим клиента должен быть default, direct или upstream", "Client traffic counter overflow": "Переполнение счётчика трафика клиента", "Configure one to three HTTPS probe URLs": "Укажите от одного до трёх HTTPS-адресов проверки", "Configure up to eight failover candidates": "Можно выбрать не более восьми резервных туннелей", "DNS client closed": "DNS-клиент закрыл соединение", "DNS proxy stopped": "DNS-прокси остановлен", "DNS request limit reached": "Достигнут лимит DNS-запросов", "DNS upstream closed": "DNS-сервер закрыл соединение", "DNS upstream must be IPv4": "DNS-сервер должен иметь IPv4-адрес", "DNS upstream response too large": "Слишком большой ответ DNS-сервера", "DNS upstream timeout": "Истекло время ожидания DNS-сервера", "DNS_TTL_MIN must not exceed DNS_TTL_MAX": "DNS_TTL_MIN не должен превышать DNS_TTL_MAX", "DNS_UPSTREAM must be an IPv4 address": "DNS_UPSTREAM должен содержать IPv4-адрес", "Disable failover before choosing Direct or Blocked as the default route": "Отключите резервирование, прежде чем выбирать «Напрямую» или «Заблокировано» в качестве основного маршрута", "Each candidate needs an upstreamId and priority": "Для каждого кандидата нужны идентификатор туннеля и приоритет", "Each upstream may appear only once in failover candidates": "Туннель нельзя добавлять в резервирование несколько раз", "Existing wg0.json is not an AWG 3 state file; migrate it manually or use an empty CONFIG_DIR": "Файл wg0.json не соответствует AWG3: выполните миграцию или используйте пустой CONFIG_DIR", "Failover priority must be an integer between 1 and 10000": "Приоритет резервирования должен быть целым числом от 1 до 10000", "Failover priority must be an integer between 1 and 10000, or null to exclude the upstream": "Укажите приоритет от 1 до 10000 либо null для исключения туннеля", "Failover settings must be an object": "Неверный формат настроек резервирования", "Fixed listen port must be in UPSTREAM_PORT_RANGE; update the Compose deployment to publish other ports": "Фиксированный порт должен входить в UPSTREAM_PORT_RANGE; для других портов измените публикацию в Compose", "IPv4 forwarding is disabled in new network namespaces; enable forwarding on the Docker host and recreate the container": "IPv4-пересылка отключена в новых сетевых пространствах: включите её на Docker-хосте и пересоздайте контейнер", "Include the saved default upstream in failover candidates": "Добавьте сохранённый основной туннель в список резервирования", "Incomplete peer status": "Неполная статистика соединения", "Incomplete profile": "Неполная конфигурация профиля", "Invalid DNS frame": "Некорректный DNS-фрейм", "Invalid DNS packet": "Некорректный DNS-пакет", "Invalid HTTPS probe URL": "Некорректный HTTPS-адрес проверки", "Invalid IPv4 transit exclusion": "Некорректное исключение транзитной IPv4-сети", "Invalid JSON": "Некорректный JSON", "Invalid client IPv4 address": "Некорректный IPv4-адрес клиента", "Invalid client statistics entry": "Некорректная запись статистики клиента", "Invalid client statistics file": "Некорректный файл статистики клиентов", "Invalid direct client IPv4 address": "Некорректный IPv4-адрес прямого клиента", "Invalid handshake history format": "Некорректный формат истории обмена ключами", "Invalid profile": "Некорректный профиль", "Invalid proxy address": "Некорректный адрес прокси", "Invalid proxy address chain": "Некорректная цепочка адресов прокси", "Invalid upstream configuration syntax": "Ошибка синтаксиса конфигурации туннеля", "Listen port must be an integer between 0 and 65535": "Порт должен быть целым числом от 0 до 65535", "Listen port must be between 0 and 65535": "Порт должен быть от 0 до 65535", "Login is busy; try again later": "Сервис входа занят; повторите позже", "Method not allowed": "Метод запроса не поддерживается", "Missing AWG3 header protection": "Отсутствует параметр защиты заголовка AWG3", "Native WireGuard server identity is missing": "Отсутствуют ключи сервера WireGuard", "No available IPv4 addresses remain in this client pool.": "В пуле клиентов не осталось свободных IPv4-адресов", "No non-overlapping private transit subnet is available for this upstream": "Не найдена свободная непересекающаяся транзитная подсеть", "Not found": "Не найдено", "PASSWORD_HASH must contain a bcrypt hash": "PASSWORD_HASH должен содержать bcrypt-хеш", "Password verification is unavailable": "Проверка пароля недоступна", "Password verification timed out": "Истекло время проверки пароля", "Peer endpoint must be an IP address or hostname with a valid UDP port": "Укажите IP-адрес или имя узла с допустимым UDP-портом", "Policy name must contain 1-64 characters": "Имя правила должно содержать от 1 до 64 символов", "Policy not found": "Правило не найдено", "Policy priority is already used": "Этот приоритет уже занят другим правилом", "Policy priority must be between 1 and 10000": "Приоритет правила должен быть от 1 до 10000", "Policy requires at least one domain or IPv4 network": "Добавьте хотя бы один домен или IPv4-сеть", "Probe URLs must use HTTPS with an IPv4 address or hostname, without credentials or fragments": "Адрес проверки должен быть HTTPS с IPv4 или именем узла, без данных входа и фрагмента", "Probe targets must be HTTPS URLs of at most 2048 characters": "Укажите HTTPS-адреса проверки длиной до 2048 символов", "Probe timeout must not exceed the check interval": "Тайм-аут проверки не должен превышать интервал", "Protocol must be AWG3, AWG2, or WG": "Выберите протокол AWG3, AWG2 или WG", "RandomTrailers requires equal S1-S4 in this deployment": "Для RandomTrailers в этой конфигурации требуются одинаковые S1–S4", "Request body is too large": "Слишком большой размер запроса", "Request body timed out": "Истекло время получения запроса", "Require AWG2_JMIN <= AWG2_JMAX < WG_MTU": "Необходимо AWG2_JMIN ≤ AWG2_JMAX < WG_MTU", "Require JMIN <= JMAX < WG_MTU": "Необходимо JMIN ≤ JMAX < WG_MTU", "Reverse initiation requires an endpoint and keepalive interval": "Для обратной инициации укажите адрес и интервал keepalive", "Reverse keepalive must be an integer between 1 and 65535 seconds": "Интервал keepalive должен быть целым числом от 1 до 65535 секунд", "Route type must be direct, blocked, or upstream": "Тип маршрута должен быть direct, blocked или upstream", "Routing shutdown could not complete; forwarding guards were retained": "Завершение маршрутизации не выполнено; защитные правила сохранены", "Select an existing backup upstream": "Выберите существующий резервный туннель", "Select an existing candidate upstream": "Выберите существующий туннель-кандидат", "Select an existing upstream as the default route before enabling failover": "Перед включением резервирования выберите туннель основным маршрутом", "Select at least two failover candidates": "Выберите не менее двух туннелей для резервирования", "Selected upstream does not exist": "Выбранный туннель не существует", "Too many active sessions": "Слишком много активных сессий", "UPSTREAM_PORT_RANGE must be a port or a consecutive range": "UPSTREAM_PORT_RANGE должен содержать порт или последовательный диапазон", "UPSTREAM_PORT_RANGE must contain 1-8 ports between 1 and 65535": "UPSTREAM_PORT_RANGE должен содержать 1–8 портов в пределах 1–65535", "UPSTREAM_PORT_RANGE must not overlap inbound UDP ports or DNS port 53": "Диапазон upstream-портов не должен пересекать входящие UDP-порты и DNS-порт 53", "Unable to apply direct client routing and pinned upstreams": "Не удалось применить индивидуальные маршруты клиентов", "Unable to apply upstream configuration; check its AWG parameters and listen port": "Не удалось применить конфигурацию туннеля: проверьте параметры AWG и порт", "Unable to clear previous client connections": "Не удалось очистить прежние соединения клиента", "Unable to create upstream namespace; verify SYS_ADMIN capability and namespace support": "Не удалось создать сетевое пространство туннеля: проверьте SYS_ADMIN и поддержку namespaces", "Unable to guard downstream forwarding during routing initialization or shutdown": "Не удалось защитить клиентскую пересылку при запуске или остановке", "Unable to stop owned upstream process": "Не удалось остановить процесс туннеля", "Unable to update the default route": "Не удалось обновить основной маршрут", "Unsupported export protocol": "Неподдерживаемый протокол экспорта", "Unsupported routing.json format": "Неподдерживаемый формат routing.json", "Upstream Endpoint must be an IPv4 address or hostname plus a valid port": "Endpoint туннеля должен содержать IPv4-адрес или имя узла и допустимый порт", "Upstream MTU is invalid": "Некорректный MTU туннеля", "Upstream config Peer AllowedIPs must include 0.0.0.0/0": "AllowedIPs в Peer туннеля должен включать 0.0.0.0/0", "Upstream config must contain 80-131072 characters": "Конфигурация туннеля должна содержать 80–131072 символа", "Upstream config must contain exactly one [Peer] section": "Конфигурация туннеля должна содержать ровно одну секцию [Peer]", "Upstream config requires an IPv4 Interface Address": "Укажите IPv4-адрес в Interface Address туннеля", "Upstream configuration was rejected by awg-quick": "Конфигурация туннеля отклонена awg-quick", "Upstream is used by a routing policy": "Туннель используется правилом маршрутизации", "Upstream is used by the default route": "Туннель используется основным маршрутом", "Upstream listen port conflicts with an inbound UDP listener": "Порт туннеля совпадает с входящим UDP-портом", "Upstream listen port is already reserved by another upstream": "Порт уже занят другим туннелем", "Upstream name already exists": "Туннель с таким именем уже существует", "Upstream name must contain 1-64 characters": "Имя туннеля должно содержать от 1 до 64 символов", "Upstream namespace identity changed": "Сетевое пространство туннеля изменилось", "Upstream namespace is unavailable": "Сетевое пространство туннеля недоступно", "Upstream namespace was not isolated": "Сетевое пространство туннеля не изолировано", "Upstream not found": "Туннель не найден", "Upstream userspace daemon failed to start": "Не удалось запустить процесс туннеля", "Use # FailoverPriority = 20, or omit the comment to exclude the upstream": "Используйте # FailoverPriority = 20 или уберите комментарий для исключения туннеля", "Use candidates instead of backupUpstreamId": "Используйте candidates вместо backupUpstreamId", "Use only one FailoverPriority comment": "Допустим только один комментарий FailoverPriority", "VPN control socket is unavailable": "Управляющий сокет VPN недоступен", "WEBUI_HTTPS must be true or false": "WEBUI_HTTPS должен иметь значение true или false", "WG_DEFAULT_ADDRESS, AWG2_DEFAULT_ADDRESS, and NATIVE_WG_DEFAULT_ADDRESS must use different /24 networks": "WG_DEFAULT_ADDRESS, AWG2_DEFAULT_ADDRESS и NATIVE_WG_DEFAULT_ADDRESS должны использовать разные сети /24", "WG_HOST is required": "Необходимо указать WG_HOST", "WG_PORT, AWG2_PORT, and NATIVE_WG_PORT must be different": "WG_PORT, AWG2_PORT и NATIVE_WG_PORT должны различаться", "failoverPriority is required; use null to exclude the upstream": "Укажите failoverPriority; null исключает туннель из резервирования", "listenPort is required; use 0 for automatic allocation": "Укажите listenPort; 0 означает автоматический выбор", "reverseInitiation is required; use null to disable": "Укажите reverseInitiation; null отключает обратную инициацию", "Policies enabled must be a boolean": "Состояние правил должно быть логическим значением", "Unable to apply routing policy switch": "Не удалось переключить применение правил маршрутизации", "Cannot read saved upstream port": "Не удалось прочитать сохранённый порт туннеля", "Upstream namespace link is unavailable": "Сетевая связь с пространством туннеля недоступна"});
-  const errorTranslations = [["^(.+) is forbidden in imported upstream configs$", "Параметр {0} запрещён в импортируемой конфигурации"], ["^(.+) must be a boolean$", "Параметр {0} должен быть логическим значением"], ["^(.+) must be an integer between (.+) and (.+)$", "Параметр {0} должен быть целым числом от {1} до {2}"], ["^(.+) must be between (.+) and (.+)$", "Параметр {0} должен быть от {1} до {2}"], ["^(.+) must be an IPv4 /24 template such as 10.8.3.x$", "Параметр {0} должен быть IPv4-шаблоном /24, например 10.8.3.x"], ["^AWG 3 requires (.+) to be at least 12$", "Для AWG3 параметр {0} должен быть не меньше 12"], ["^AWG 3 upstream config is missing Interface (.+)$", "В секции Interface AWG3 отсутствует {0}"], ["^At most (.+) upstreams are supported$", "Поддерживается не более {0} выходных туннелей"], ["^Invalid IPv4 network: (.+)$", "Некорректная IPv4-сеть: {0}"], ["^Invalid domain: (.+)$", "Некорректный домен: {0}"], ["^Legacy AWG upstream (.+) must be an unsigned integer$", "Параметр {0} прежнего AWG должен быть целым неотрицательным числом"], ["^UAPI socket did not appear for (.+)$", "Не появился управляющий сокет интерфейса {0}"], ["^Unable to add DNS route for (.+): (.+)$", "Не удалось добавить DNS-маршрут для {0}: {1}"], ["^Unable to start upstream: (.+)$", "Не удалось запустить туннель: {0}"], ["^Unable to update upstream listen port: (.+)$", "Не удалось изменить порт туннеля: {0}"], ["^Unknown failover setting: (.+)$", "Неизвестная настройка резервирования: {0}"], ["^Unsupported config section: (.+)$", "Неподдерживаемая секция конфигурации: {0}"], ["^Upstream config is missing Interface (.+)$", "В секции Interface туннеля отсутствует {0}"], ["^Upstream config is missing Peer (.+)$", "В секции Peer туннеля отсутствует {0}"], ["^Upstream namespace command failed: (.+)$", "Ошибка команды в пространстве туннеля: {0}"], ["^Upstream network command failed: (.+)$", "Ошибка сетевой команды туннеля: {0}"], ["^nft reconciliation failed: (.+)$", "Не удалось применить nft-правила: {0}"], ["^(.+) failed: (.+)$", "Ошибка выполнения {0}: {1}"]];
+  const errorTranslations = [[ "^Priority is already used by (.+)$", "Этот приоритет уже используется туннелем {0}"], ["^(.+) is forbidden in imported upstream configs$", "Параметр {0} запрещён в импортируемой конфигурации"], ["^(.+) must be a boolean$", "Параметр {0} должен быть логическим значением"], ["^(.+) must be an integer between (.+) and (.+)$", "Параметр {0} должен быть целым числом от {1} до {2}"], ["^(.+) must be between (.+) and (.+)$", "Параметр {0} должен быть от {1} до {2}"], ["^(.+) must be an IPv4 /24 template such as 10.8.3.x$", "Параметр {0} должен быть IPv4-шаблоном /24, например 10.8.3.x"], ["^AWG 3 requires (.+) to be at least 12$", "Для AWG3 параметр {0} должен быть не меньше 12"], ["^AWG 3 upstream config is missing Interface (.+)$", "В секции Interface AWG3 отсутствует {0}"], ["^At most (.+) upstreams are supported$", "Поддерживается не более {0} выходных туннелей"], ["^Invalid IPv4 network: (.+)$", "Некорректная IPv4-сеть: {0}"], ["^Invalid domain: (.+)$", "Некорректный домен: {0}"], ["^Legacy AWG upstream (.+) must be an unsigned integer$", "Параметр {0} прежнего AWG должен быть целым неотрицательным числом"], ["^UAPI socket did not appear for (.+)$", "Не появился управляющий сокет интерфейса {0}"], ["^Unable to add DNS route for (.+): (.+)$", "Не удалось добавить DNS-маршрут для {0}: {1}"], ["^Unable to start upstream: (.+)$", "Не удалось запустить туннель: {0}"], ["^Unable to update upstream listen port: (.+)$", "Не удалось изменить порт туннеля: {0}"], ["^Unknown failover setting: (.+)$", "Неизвестная настройка резервирования: {0}"], ["^Unsupported config section: (.+)$", "Неподдерживаемая секция конфигурации: {0}"], ["^Upstream config is missing Interface (.+)$", "В секции Interface туннеля отсутствует {0}"], ["^Upstream config is missing Peer (.+)$", "В секции Peer туннеля отсутствует {0}"], ["^Upstream namespace command failed: (.+)$", "Ошибка команды в пространстве туннеля: {0}"], ["^Upstream network command failed: (.+)$", "Ошибка сетевой команды туннеля: {0}"], ["^nft reconciliation failed: (.+)$", "Не удалось применить nft-правила: {0}"], ["^(.+) failed: (.+)$", "Ошибка выполнения {0}: {1}"]];
   const storageKey = 'awg-chain-easy.language';
   let language = 'ru';
   try { const saved = localStorage.getItem(storageKey); if (saved === 'ru' || saved === 'en') language = saved; } catch (_) { /* Storage may be unavailable. */ }
@@ -240,7 +260,7 @@ const elements = Object.fromEntries([
   'dns-status', 'dns-upstream', 'upstream-count', 'policy-count',
   'default-route-form', 'default-route', 'default-route-error',
   'failover-status', 'failover-runtime-error', 'failover-settings', 'failover-form', 'failover-fields',
-  'failover-enabled', 'failover-enable', 'failover-disable', 'failover-interval', 'failover-timeout', 'failover-failures',
+  'failover-interval', 'failover-timeout', 'failover-failures',
   'failover-recovery', 'failover-targets', 'failover-auto-return', 'failover-error', 'failover-return',
   'upstream-create-panel', 'cancel-upstream-button', 'upstream-form', 'upstream-name',
   'upstream-file', 'upstream-config', 'upstream-error', 'upstream-rows', 'upstream-empty',
@@ -470,6 +490,11 @@ function upstreamConnectionBadge(upstream) {
   };
   const [label, style, description] = states[upstream.connectionStatus] || states.unknown;
   const badge = stateBadge(label, style);
+  if (label === 'Stale' && I18N.language === 'ru') {
+    const wording = document.createElement('span');
+    wording.append('Нет свежего', document.createElement('br'), 'handshake');
+    badge.replaceChildren(badge.firstChild, wording);
+  }
   badge.title = t(description);
   return badge;
 }
@@ -502,6 +527,7 @@ function syncUpstreamEditMode() {
 function openUpstreamEdit(upstream, mode = 'endpoint') {
   upstreamEditId = upstream.id;
   upstreamEditForm.reset();
+  upstreamEditForm.elements.mode.querySelector('[value=priority]').hidden = !lastData?.routing.failover.config.enabled;
   upstreamEditForm.elements.mode.value = mode;
   upstreamEditForm.elements.tunnelName.value = upstream.name;
   upstreamEditForm.elements.priority.value = upstream.failoverPriority ?? '';
@@ -555,6 +581,7 @@ upstreamEditForm.addEventListener('submit', async (event) => {
     name: ['/name', { name: fields.tunnelName.value }],
     priority: ['/failover-priority', { failoverPriority: priority === '' ? null : Number(priority) }],
   }[mode];
+  if (mode === 'priority' && priority === '' && losesFailoverCandidate(id) && !await confirmAction('Failover priority', fallbackWarning, 'Save')) return;
   text(upstreamEditError, '');
   submit.disabled = true;
   try {
@@ -572,6 +599,12 @@ upstreamEditForm.addEventListener('submit', async (event) => {
 // Keep only the last displayed probe timestamps when checks are switched off.
 const upstreamCheckTimes = new Map();
 
+function losesFailoverCandidate(id) {
+  const routing = lastData?.routing;
+  return routing?.failover.config.enabled && routing.upstreams.some(u => u.id === id && u.enabled && u.failoverPriority != null)
+    && routing.upstreams.filter(u => u.id !== id && u.enabled && u.failoverPriority != null).length < 2;
+}
+const fallbackWarning = 'Fewer than two eligible tunnels will remain. The route will become fixed on the remaining tunnel, or blocked if none remains.';
 function renderUpstreams(routing) {
   const { upstreams, failover } = routing;
   for (const id of upstreamCheckTimes.keys()) {
@@ -622,6 +655,8 @@ function renderUpstreams(routing) {
       catch (error) { showMessage(error.message); }
     }));
     actions.append(button(upstream.enabled ? 'Disable' : 'Enable', 'outline-blue', async () => {
+      if (upstream.enabled && losesFailoverCandidate(upstream.id) &&
+          !await confirmAction('Disable', fallbackWarning, 'Disable')) return;
       try {
         await request(`/api/routing/upstreams/${upstream.id}/${upstream.enabled ? 'disable' : 'enable'}`, { method: 'POST' });
         await refresh();
@@ -631,7 +666,7 @@ function renderUpstreams(routing) {
       const removed = await confirmAction('Delete upstream', ['Delete tunnel “{name}”?', 'Its imported private configuration will be deleted.'], 'Delete upstream',
         { name: upstream.name, priority: upstream.failoverPriority },
         () => request(`/api/routing/upstreams/${upstream.id}`, { method: 'DELETE' }),
-        upstream.failoverPriority == null ? '' : 'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.');
+        losesFailoverCandidate(upstream.id) ? fallbackWarning : upstream.failoverPriority == null ? '' : 'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.');
       if (removed) await refresh();
     }));
     const upstreamButtons = [...actions.children]; actions.replaceChildren();
@@ -693,7 +728,7 @@ function renderUpstreams(routing) {
     row.classList.toggle('row-disabled', !upstream.enabled);
     row.append(
       cell('Server', endpointInfo, 'upstream-server'),
-      cell('Priority', priority, 'numeric'),
+      cell('Priority', priority, 'numeric upstream-priority-column'),
       cell('Availability', upstreamAvailability(upstream, failover), 'connection-column'),
       cell('Connection', upstreamConnectionBadge(upstream), 'connection-column'),
       cell('Handshake', time(upstream.latestHandshakeAt), 'numeric'),
@@ -766,6 +801,7 @@ function renderRouting(routing) {
   renderUpstreams(routing);
   renderPolicies(routing.policies, routing.upstreams);
   renderFailover(routing);
+  renderRouteMode(routing);
 }
 
 function upstreamAvailability(upstream, {config, health}) {
@@ -787,7 +823,7 @@ function upstreamAvailability(upstream, {config, health}) {
   const box = document.createElement('div');
   box.className = 'resource-details';
   box.append(stateBadge(label, tone));
-  for (const [key, value, fallback] of [['Check', times?.checkedAt, 'Not yet checked'],
+  for (const [key, value, fallback] of [['Check', times?.checkedAt, '—'],
       ['Successful', times?.lastSuccessAt, '—']]) {
     const line = document.createElement('span');
     line.className = 'secondary-value';
@@ -807,8 +843,7 @@ function renderFailover(routing) {
   const selectedPriority = candidates.find((item) => item.upstreamId === selectedUpstreamId)?.priority;
   elements['failover-return'].hidden = !config.enabled || !candidates.some((item) => item.priority < selectedPriority);
   elements['failover-return'].disabled = !preferredUpstreamIds?.length;
-  elements['failover-enabled'].checked = config.enabled;
-  updateFailoverFields();
+
   if (failoverFormDirty) return;
   elements['failover-auto-return'].checked = config.autoFailback;
   for (const [id, key] of [['interval', 'intervalSeconds'], ['timeout', 'timeoutSeconds'], ['failures', 'failureThreshold'], ['recovery', 'recoveryThreshold']]) {
@@ -1395,14 +1430,53 @@ elements['policy-form'].addEventListener('submit', async (event) => {
   finally { submit.disabled = false; }
 });
 
-elements['default-route'].addEventListener('change', () => { defaultRouteDirty = true; });
+const routeControl = id => document.getElementById(id);
+let routeMode = 'fixed';
+function renderRouteMode(routing) {
+  const saved = routing.failover.config.enabled ? 'automatic' : 'fixed';
+  if (!defaultRouteDirty) routeMode = saved;
+  for (const mode of ['fixed', 'automatic']) {
+    const button = routeControl('mode-' + mode);
+    button.classList.toggle('primary', mode === routeMode);
+    button.classList.toggle('secondary', mode !== routeMode);
+    button.setAttribute('aria-pressed', String(mode === routeMode));
+  }
+  routeControl('route-fixed').hidden = routeMode !== 'fixed';
+  routeControl('route-automatic').hidden = routeMode !== 'automatic';
+  elements['default-route'].disabled = routeMode !== 'fixed';
+  routeControl('route-draft').hidden = !defaultRouteDirty;
+  const eligible = routing.upstreams.filter(u => u.enabled && u.failoverPriority != null).sort((a,b) => a.failoverPriority-b.failoverPriority);
+  const preferred = eligible[0];
+  const current = routing.effectiveDefaultRoute;
+  text(routeControl('route-preferred'), 'Preferred: {name}', { name: preferred?.name || '—' });
+  text(routeControl('route-current'), saved === 'automatic' ? 'Currently used: {name}' : 'Saved route: {name}', { name: routeLabel(current || {type:'blocked'}, routing.upstreams) });
+  const duplicates = eligible.some((u, i) => i > 0 && u.failoverPriority === eligible[i - 1].failoverPriority);
+  routeControl('route-duplicate').hidden = !duplicates;
+  text(routeControl('route-return'), routing.failover.config.autoFailback ? 'Automatic return: on' : 'Automatic return: off');
+  routeControl('fixed-priority-note').hidden = saved !== 'fixed';
+  routeControl('upstreams-title').textContent = t(saved === 'fixed' ? 'Upstream tunnels' : 'Upstream tunnels and failover');
+  routeControl('upstream-rows').closest('table').classList.toggle('fixed-route-table', saved === 'fixed');
+  const direction = routeFromValue(elements['default-route'].value);
+  text(routeControl('route-hint'), direction.type === 'direct' ? 'Traffic exits directly through Server A.'
+    : direction.type === 'blocked' ? 'Unmatched traffic is blocked.'
+      : 'Traffic uses only {name}. If unavailable, traffic is blocked.', {name: routeLabel(direction, routing.upstreams)});
+}
+for (const mode of ['fixed','automatic']) routeControl('mode-'+mode).addEventListener('click', () => {
+  if (!lastData) return;
+  routeMode = mode;
+  defaultRouteDirty = true;
+  renderRouteMode(lastData.routing);
+});
+elements['default-route'].addEventListener('change', () => { defaultRouteDirty = true; renderRouteMode(lastData.routing); });
+routeControl('open-failover').addEventListener('click', () => elements['failover-settings'].showModal());
+routeControl('close-failover').addEventListener('click', () => elements['failover-settings'].close());
 elements['default-route-form'].addEventListener('submit', async (event) => {
   event.preventDefault();
   text(elements['default-route-error'], '');
   try {
-    await request('/api/routing/default', {
+    await request('/api/routing/mode', {
       method: 'PUT',
-      body: JSON.stringify({ route: routeFromValue(elements['default-route'].value) }),
+      body: JSON.stringify({ mode: routeMode, ...(routeMode === 'fixed' ? { route: routeFromValue(elements['default-route'].value) } : {}) }),
     });
     defaultRouteDirty = false;
     await refresh();
@@ -1518,27 +1592,6 @@ elements['dns-test'].addEventListener('click', async () => {
   } catch(error) { text(elements['dns-settings-message'], error.message); }
   finally { dnsTesting = false; renderDnsTestResults(); validateDnsDraft(); }
 });
-function updateFailoverFields() {
-  const enabled = elements['failover-enabled'].checked;
-  elements['failover-fields'].hidden = false;
-  elements['failover-fields'].disabled = !enabled;
-  elements['failover-form'].querySelector('[type="submit"]').disabled = !enabled;
-  for (const [id, active] of [['failover-enable', enabled], ['failover-disable', !enabled]]) {
-    elements[id].classList.toggle('primary', active); elements[id].classList.toggle('secondary', !active); elements[id].setAttribute('aria-pressed', String(active));
-  }
-}
-for (const [id, enabled] of [['failover-enable', true], ['failover-disable', false]]) {
-  elements[id].addEventListener('click', async () => {
-    if (elements['failover-enabled'].checked === enabled) return;
-    elements['failover-enable'].disabled = elements['failover-disable'].disabled = true;
-    text(elements['failover-error'], '');
-    try {
-      await request('/api/routing/failover', { method: 'PUT', body: JSON.stringify({ enabled }) });
-      elements['failover-enabled'].checked = enabled; updateFailoverFields(); await refresh();
-    } catch(error) { text(elements['failover-error'], error.message); }
-    finally { elements['failover-enable'].disabled = elements['failover-disable'].disabled = false; }
-  });
-}
 elements['failover-form'].addEventListener('input', () => { failoverFormDirty = true; });
 elements['failover-form'].addEventListener('change', () => { failoverFormDirty = true; });
 elements['failover-form'].addEventListener('submit', async (event) => {
@@ -1547,14 +1600,12 @@ elements['failover-form'].addEventListener('submit', async (event) => {
   try {
     await request('/api/routing/failover', {
       method: 'PUT', body: JSON.stringify({
-        enabled: elements['failover-enabled'].checked,
         intervalSeconds: Number(elements['failover-interval'].value),
         timeoutSeconds: Number(elements['failover-timeout'].value),
         failureThreshold: Number(elements['failover-failures'].value),
         recoveryThreshold: Number(elements['failover-recovery'].value),
         autoFailback: elements['failover-auto-return'].checked,
         targets: elements['failover-targets'].value.split('\n').map((item) => item.trim()).filter(Boolean),
-        ...(elements['failover-enabled'].checked ? {} : { ...lastData.routing.failover.config, enabled: false }),
       }),
     });
     failoverFormDirty = false;

@@ -643,6 +643,10 @@ async function api(request, response, url) {
     const policy = await routing.addPolicy(await readJson(request));
     return send(response, 201, { id: policy.id });
   }
+  if (url.pathname === '/api/routing/mode' && request.method === 'PUT') {
+    await routing.setRouteMode(await readJson(request));
+    return send(response, 200, { success: true });
+  }
   if (url.pathname === '/api/routing/default' && request.method === 'PUT') {
     const { route } = await readJson(request);
     await routing.setDefaultRoute(route);

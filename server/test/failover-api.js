@@ -25,7 +25,7 @@ module.exports = async function exerciseFailover(api, upstream, primaryId) {
   fs.renameSync(binary, `${binary}.test-original`);
   fs.writeFileSync(binary, '#!/bin/sh\nexit "$(cat /tmp/failover-test-health-$4 2>/dev/null || echo 1)"\n', { mode: 0o755 });
   let policy;
-  const settings = { enabled: true, candidates: pool.map((item, index) => ({ upstreamId: item.id, priority: [10, 20, 20, 30][index] })), intervalSeconds: 5, timeoutSeconds: 1,
+  const settings = { enabled: true, candidates: pool.map((item, index) => ({ upstreamId: item.id, priority: [10, 20, 21, 30][index] })), intervalSeconds: 5, timeoutSeconds: 1,
     failureThreshold: 2, recoveryThreshold: 2, autoFailback: false, targets: ['https://1.1.1.1/cdn-cgi/trace'] };
   async function waitFor(predicate, description) {
     for (let i = 0; i < 160; i++) {
@@ -67,7 +67,7 @@ module.exports = async function exerciseFailover(api, upstream, primaryId) {
     assert.equal(Object.keys(healthy.failover.health).length, 4);
     assert.ok(Object.values(healthy.failover.health).every((h) => h.checkedAt && h.lastSuccessAt));
     outcome(primary, false);
-    const switched = await waitFor((s) => [backup.id, peer.id].includes(s.effectiveDefaultRoute.upstreamId), 'Primary failure should select a priority-20 backup');
+    const switched = await waitFor((s) => s.effectiveDefaultRoute.upstreamId === backup.id, 'Primary failure should select a priority-20 backup');
     const chosen = pool.find((item) => item.id === switched.effectiveDefaultRoute.upstreamId);
     const other = [secondary, tertiary].find((item) => item.id !== chosen.id);
     assert.equal(switched.defaultRoute.upstreamId, primary.id, 'Configured primary must remain unchanged');
@@ -79,11 +79,6 @@ module.exports = async function exerciseFailover(api, upstream, primaryId) {
     await api('/api/routing/failover/preferred', 'POST', undefined, 409);
     outcome(chosen, false);
     await waitFor((s) => s.effectiveDefaultRoute.upstreamId === other.id, 'A second backup in the same group should take over');
-    await api('/api/routing/failover', 'PUT', { autoFailback: true });
-    outcome(chosen, true);
-    const tiedRecovery = await waitFor((s) => s.failover.health[chosen.id].eligible, 'Equal-priority backup should recover');
-    assert.equal(tiedRecovery.effectiveDefaultRoute.upstreamId, other.id, 'Equal-priority recovery must not switch, even with automatic return');
-    await api('/api/routing/failover', 'PUT', { autoFailback: false });
     outcome(chosen, false); outcome(other, false);
     await waitFor((s) => s.effectiveDefaultRoute.upstreamId === finalBackup.id, 'The last backup group should take over');
     outcome(other, true);

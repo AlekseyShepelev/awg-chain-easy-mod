@@ -400,3 +400,6 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 .import-failover-row { display: flex; align-items: center; gap: var(--space-3); }
 .import-priority-disabled { opacity: .55; }
 #confirm-action-message { white-space: pre-line; }
+
+.fixed-route-table .upstream-priority-column { display: none; }
+#default-route-form > .segmented-switch { flex-wrap: wrap; align-self: flex-start; }
