@@ -411,3 +411,5 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 #route-automatic > p[id] { font-size: 1.1em; }
 #route-preferred strong { color: var(--color-accent); }
 dialog#failover-settings { margin: auto; }
+
+.row-disabled .upstream-availability .secondary-value { opacity: .55; }

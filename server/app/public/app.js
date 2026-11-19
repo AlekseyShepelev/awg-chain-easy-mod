@@ -69,6 +69,8 @@
     'Priority is already used by {0}': 'Этот приоритет уже используется туннелем {0}',
     'Some tunnels have the same saved priority. Assign different priorities to remove the tie.': 'У нескольких туннелей одинаковый сохранённый приоритет. Назначьте разные значения.',
     'Automatic return: {name}': 'Автовозврат: {name}',
+    'Uses the selected direction for automatic clients when no routing rule matches. It does not switch tunnels.': 'Если ни одно правило не подошло, клиенты в автоматическом режиме используют выбранное направление. Туннели автоматически не переключаются.',
+    'For automatic clients outside routing rules, switches to an available tunnel based on priority.': 'Если ни одно правило не подошло, для клиентов в автоматическом режиме система выбирает доступный туннель по приоритету.',
     'Operating mode': 'Режим работы',
     'Default': 'По умолчанию',
     'Change operating mode': 'Изменить режим работы', 'Change mode': 'Переключить',
@@ -730,7 +732,7 @@ function renderUpstreams(routing) {
     row.append(
       cell('Server', endpointInfo, 'upstream-server'),
       cell('Priority', priority, 'numeric upstream-priority-column'),
-      cell('Availability', upstreamAvailability(upstream, failover), 'connection-column'),
+      cell('Availability', upstreamAvailability(upstream, failover), 'connection-column upstream-availability'),
       cell('Connection', upstreamConnectionBadge(upstream), 'connection-column'),
       cell('Handshake', time(upstream.latestHandshakeAt), 'numeric'),
       cell('Transfer', transfer),
@@ -1443,6 +1445,9 @@ function routeFact(id, label, value, tone = '') {
 function renderRouteMode(routing) {
   const saved = routing.failover.config.enabled ? 'automatic' : 'fixed';
   routeMode = saved;
+  text(routeControl('operating-mode-hint'), saved === 'fixed'
+    ? 'Uses the selected direction for automatic clients when no routing rule matches. It does not switch tunnels.'
+    : 'For automatic clients outside routing rules, switches to an available tunnel based on priority.');
   for (const mode of ['fixed', 'automatic']) {
     const button = routeControl('mode-' + mode);
     button.classList.toggle('primary', mode === routeMode);

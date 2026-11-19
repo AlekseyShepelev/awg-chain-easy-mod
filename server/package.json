@@ -1,6 +1,6 @@
 {
   "name": "awg-chain-easy",
-  "version": "2.4.2",
+  "version": "2.4.3",
   "private": true,
   "description": "AWG 3 server with an awg-easy-style management UI",
   "license": "UNLICENSED"

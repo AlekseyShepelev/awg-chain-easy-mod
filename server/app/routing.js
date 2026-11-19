@@ -915,6 +915,10 @@ class RoutingManager {
         const remaining = this.enabledCandidates(id);
         if (remaining.length < 2) await this.saveFailoverConfig({ ...this.failoverConfig(), enabled: false }, this.fixedFallback(remaining));
       }
+      if (!enabled && !this.state.failover.enabled && this.state.defaultRoute.type === 'upstream' &&
+          this.state.defaultRoute.upstreamId === id) {
+        await this.saveFailoverConfig({ ...this.failoverConfig(), enabled: false }, { type: 'blocked' });
+      }
       this.state.upstreams[id].enabled = enabled;
       upstream.enabled = enabled;
       this.resetFailover(true);
