@@ -893,13 +893,13 @@ class RoutingManager {
       if (!upstream) throw httpError('Upstream not found', 404);
       if (this.clientRoutes().some((client) => client.egress === 'upstream' && client.upstreamId === id)) throw httpError('Upstream is assigned to a client', 409);
       if (this.state.defaultRoute.type === 'upstream' && this.state.defaultRoute.upstreamId === id) throw httpError('Upstream is used by the default route', 409);
-      if (upstream.failoverPriority != null) throw httpError('Clear this upstream’s failover priority before deleting it', 409);
       if (Object.values(this.state.policies).some((policy) => policy.route.type === 'upstream' && policy.route.upstreamId === id)) throw httpError('Upstream is used by a routing policy', 409);
       await this.stopUpstream(upstream);
       delete this.state.upstreams[id];
       this.runtime.delete(id);
       await fsp.unlink(this.configPath(id)).catch(() => {});
       await this.save();
+      this.resetFailover(true);
       await this.reconcile();
     });
   }

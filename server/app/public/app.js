@@ -41,6 +41,11 @@
     'Add tunnel': 'Добавить туннель', 'Tunnel name': 'Имя туннеля', 'Name in client profiles': 'Имя в профилях клиентов', 'Name in panel': 'Имя в панели', 'Invalid panel name': 'Имя в панели должно содержать не более 64 символов без управляющих знаков',
     'Direct via eth0 ({name})': 'Напрямую через eth0 ({name})', 'Replace configuration (.conf)': 'Заменить конфигурацию (.conf)',
     'Failover:': 'Резервирование:', 'enabled': 'включено', 'disabled': 'выключено',
+    'Participate in failover': 'Участвовать в резервировании', 'Lower numbers are preferred.': 'Чем меньше число, тем выше приоритет.',
+    'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.': 'Туннель участвует в резервировании (приоритет {priority}). После удаления он больше не будет использоваться для автоматического переключения.',
+    'Reassign the clients pinned to this tunnel before deleting it.': 'Перед удалением выберите другой маршрут для клиентов, закреплённых за этим туннелем.',
+    'Choose another default route before deleting this tunnel.': 'Перед удалением выберите другое направление в блоке «Маршрут по умолчанию».',
+    'Change the routing rules that use this tunnel before deleting it.': 'Перед удалением измените направление в правилах маршрутизации, использующих этот туннель.',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -314,11 +319,17 @@ function time(value, relativeDays = false) {
 }
 
 let pendingConfirmation = null;
-function confirmAction(title, message, acceptLabel, values = {}) {
+let confirmedAction = null;
+const confirmationError = document.querySelector('#confirm-action-error');
+function confirmAction(title, message, acceptLabel, values = {}, action = null, warning = '') {
   const dialog = elements['confirm-action-dialog'];
   if (dialog.open || pendingConfirmation) return Promise.resolve(false);
   text(elements['confirm-action-title'], title);
   text(elements['confirm-action-message'], message, values);
+  if (warning) elements['confirm-action-message'].append(' ' + t(warning, values));
+  confirmedAction = action;
+  confirmationError.hidden = true;
+  confirmationError.textContent = '';
   text(elements['confirm-action-accept'], acceptLabel);
   dialog.returnValue = 'cancel';
   elements['confirm-action-accept'].disabled = false;
@@ -329,9 +340,32 @@ function confirmAction(title, message, acceptLabel, values = {}) {
   });
 }
 elements['confirm-action-cancel'].addEventListener('click', () => elements['confirm-action-dialog'].close('cancel'));
-elements['confirm-action-accept'].addEventListener('click', () => {
-  elements['confirm-action-accept'].disabled = true;
-  elements['confirm-action-dialog'].close('confirm');
+elements['confirm-action-accept'].addEventListener('click', async () => {
+  const accept = elements['confirm-action-accept'];
+  const cancel = elements['confirm-action-cancel'];
+  const dialog = elements['confirm-action-dialog'];
+  accept.disabled = true;
+  cancel.disabled = true;
+  confirmationError.hidden = true;
+  try {
+    if (confirmedAction) await confirmedAction();
+    dialog.close('confirm');
+  } catch (error) {
+    const hints = {
+      'Upstream is assigned to a client': 'Reassign the clients pinned to this tunnel before deleting it.',
+      'Upstream is used by the default route': 'Choose another default route before deleting this tunnel.',
+      'Upstream is used by a routing policy': 'Change the routing rules that use this tunnel before deleting it.',
+    };
+    const reason = Object.keys(hints).find(key => error.message === key || error.message === t(key));
+    text(confirmationError, hints[reason] || error.message);
+    confirmationError.hidden = false;
+  } finally {
+    accept.disabled = false;
+    cancel.disabled = false;
+  }
+});
+elements['confirm-action-dialog'].addEventListener('cancel', (event) => {
+  if (elements['confirm-action-cancel'].disabled) event.preventDefault();
 });
 elements['confirm-action-dialog'].addEventListener('close', () => {
   const resolve = pendingConfirmation;
@@ -592,9 +626,11 @@ function renderUpstreams(routing) {
       } catch (error) { showMessage(error.message); }
     }));
     actions.append(button('Delete', 'danger', async () => {
-      if (!await confirmAction('Delete upstream', 'Delete upstream “{name}”? Its imported private config will be removed.', 'Delete upstream', { name: upstream.name })) return;
-      try { await request(`/api/routing/upstreams/${upstream.id}`, { method: 'DELETE' }); await refresh(); }
-      catch (error) { showMessage(error.message); }
+      const removed = await confirmAction('Delete upstream', 'Delete upstream “{name}”? Its imported private config will be removed.', 'Delete upstream',
+        { name: upstream.name, priority: upstream.failoverPriority },
+        () => request(`/api/routing/upstreams/${upstream.id}`, { method: 'DELETE' }),
+        upstream.failoverPriority == null ? '' : 'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.');
+      if (removed) await refresh();
     }));
     const upstreamButtons = [...actions.children]; actions.replaceChildren();
     for (const group of [upstreamButtons.slice(0, 2), upstreamButtons.slice(2)]) {
@@ -1178,6 +1214,7 @@ function suggestedUpstreamName() {
 }
 
 elements['new-upstream-button'].addEventListener('click', () => {
+  syncImportPriority();
   elements['upstream-name'].placeholder = suggestedUpstreamName();
   text(elements['upstream-error'], '');
   elements['upstream-create-panel'].showModal();
@@ -1189,6 +1226,22 @@ elements['cancel-upstream-button'].addEventListener('click', () => {
 });
 elements['upstream-create-panel'].addEventListener('close', () => text(elements['upstream-error'], ''));
 elements['policy-create-panel'].addEventListener('close', resetPolicyEditor);
+const importPriority = document.querySelector('#import-priority');
+const importFailover = document.querySelector('#import-failover');
+function syncImportPriority() {
+  document.querySelector('#import-priority-field').hidden = !importFailover.checked;
+  importPriority.disabled = !importFailover.checked;
+  importPriority.required = importFailover.checked;
+}
+function readImportPriority() {
+  const match = elements['upstream-config'].value.match(/^\s*#\s*FailoverPriority\s*=\s*(\d+)\s*$/im);
+  importPriority.value = match?.[1] || '';
+  importFailover.checked = Boolean(match);
+  syncImportPriority();
+}
+importFailover.addEventListener('change', syncImportPriority);
+elements['upstream-config'].addEventListener('input', readImportPriority);
+elements['upstream-form'].addEventListener('reset', () => queueMicrotask(syncImportPriority));
 const importFile = elements['upstream-file'];
 const importFileName = document.querySelector('#upstream-file-name');
 document.querySelector('#upstream-file-pick').addEventListener('click', () => importFile.click());
@@ -1202,6 +1255,7 @@ importFile.addEventListener('change', async () => {
     if (importFile.files[0] !== file) return;
     elements['upstream-config'].value = config;
     importFileName.textContent = file.name;
+    readImportPriority();
     text(elements['upstream-error'], '');
   } catch (error) {
     if (importFile.files[0] === file) text(elements['upstream-error'], error.message);
@@ -1215,6 +1269,7 @@ elements['upstream-form'].addEventListener('submit', async (event) => {
     await request('/api/routing/upstreams', {
       method: 'POST',
       body: JSON.stringify({ name: elements['upstream-name'].value.trim() || elements['upstream-name'].placeholder || suggestedUpstreamName(), config: elements['upstream-config'].value,
+        failoverPriority: importFailover.checked ? Number(importPriority.value) : null,
         ...(elements['upstream-listen-port'].value ? { listenPort: Number(elements['upstream-listen-port'].value) } : {}) }),
     });
     elements['upstream-form'].reset();
