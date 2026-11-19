@@ -40,6 +40,7 @@
     'Add': 'Добавить', 'Local UDP port': 'Локальный UDP-порт', 'Choose file': 'Выбрать файл',
     'Add tunnel': 'Добавить туннель', 'Tunnel name': 'Имя туннеля', 'Name in client profiles': 'Имя в профилях клиентов', 'Name in panel': 'Имя в панели', 'Invalid panel name': 'Имя в панели должно содержать не более 64 символов без управляющих знаков',
     'Direct via eth0 ({name})': 'Напрямую через eth0 ({name})', 'Replace configuration (.conf)': 'Заменить конфигурацию (.conf)',
+    'Failover:': 'Резервирование:', 'enabled': 'включено', 'disabled': 'выключено',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -557,7 +558,13 @@ function renderUpstreams(routing) {
     routeStatus.append(t(effective?.type === 'blocked' ? 'Route blocked' : 'No route selected'));
   }
   const onBackup = enabled && current?.failoverPriority > preferred;
-  routeStatus.append(' · ', stateBadge(enabled ? 'Failover enabled' : 'Failover disabled', enabled ? 'running' : 'disabled'));
+  const separator = document.createElement('span');
+  separator.className = 'upstream-route-separator';
+  separator.setAttribute('aria-hidden', 'true');
+  const failoverState = document.createElement('strong');
+  failoverState.className = enabled ? 'upstream-failover-on' : 'upstream-failover-off';
+  failoverState.textContent = t(enabled ? 'enabled' : 'disabled');
+  routeStatus.append(separator, t('Failover:'), ' ', failoverState);
   if (onBackup) routeStatus.append(' · ', t('Backup route in use'));
   const open = new Set([...elements['upstream-rows'].querySelectorAll('details[open]')].map((item) => item.closest('tr').dataset.upstreamId));
   const active = document.activeElement;

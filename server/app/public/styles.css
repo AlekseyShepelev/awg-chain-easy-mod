@@ -378,3 +378,20 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 .import-file-picker { display: flex; align-items: center; gap: var(--space-2); }
 .import-file-picker button { flex: none; }
 #upstream-file-name { overflow-wrap: anywhere; min-width: 0; }
+
+.upstream-edit-body:has(#upstream-edit-config:not([hidden])) { display: flex; flex-direction: column; }
+#upstream-edit-config:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#upstream-edit-config > .field { display: flex; flex-direction: column; flex: 1; min-height: 60px; }
+#upstream-edit-config textarea { flex: 1; min-height: 60px; }
+.upstream-route-separator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline: 0.65em;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #888;
+}
+.upstream-failover-on { color: var(--color-success, #46b981); }
+.upstream-failover-off { color: var(--color-danger, #ff7878); }

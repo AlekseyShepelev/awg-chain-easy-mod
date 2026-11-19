@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.7">
-  <script defer src="/app.js?v=2.2.7"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.8">
+  <script defer src="/app.js?v=2.2.8"></script>
 </head>
 <body>
   <header class="global-header">
@@ -299,7 +299,7 @@
         <p>Changing this port briefly restarts this upstream. Update the remote peer's endpoint to match. Leave blank for automatic allocation.</p>
       </div>
       <div id="upstream-edit-config" hidden>
-        <div class="row-actions"><button id="upstream-edit-pick" type="button" class="button secondary compact">Choose file</button><span id="upstream-edit-filename" class="secondary-value"></span></div>
+        <div class="import-file-picker"><button id="upstream-edit-pick" type="button" class="button secondary compact">Choose file</button><span id="upstream-edit-filename" class="secondary-value"></span></div>
         <input name="file" type="file" accept=".conf,text/plain" hidden>
         <div class="field wide"><label for="upstream-edit-field-config">Configuration text</label><textarea id="upstream-edit-field-config" name="config" class="code-input" rows="8" spellcheck="false" maxlength="131072"></textarea></div>
         <p>The file can change the protocol and local port. Existing routing assignments and failover priority are kept.</p>
