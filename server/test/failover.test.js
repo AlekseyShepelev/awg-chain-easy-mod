@@ -233,11 +233,17 @@ test('removing the active candidate blocks an untested replacement until recover
   assert.deepEqual(routing.effectiveDefaultRoute(), { type: 'upstream', upstreamId: 'peer' });
 });
 
-test('candidate references protect disabled pools and reject an unrelated default route', async () => {
+test('prioritized tunnels can be removed while the saved default stays protected', async () => {
   const routing = manager();
   await assert.rejects(routing.setDefaultRoute({ type: 'upstream', upstreamId: 'peer' }), /saved default/);
   routing.state.failover.enabled = false;
-  await assert.rejects(routing.deleteUpstream('backup'), /failover priority/);
+  routing.stopUpstream = async () => {};
+  routing.reconcile = async () => {};
+  routing.configPath = () => '/dev/null/nonexistent-test-config';
+  await assert.rejects(routing.deleteUpstream(routing.state.defaultRoute.upstreamId), /default route/);
+  await routing.deleteUpstream('backup');
+  assert.equal(Object.hasOwn(routing.state.upstreams, 'backup'), false);
+  assert.equal(failoverCandidates(routing.state).some(item => item.upstreamId === 'backup'), false);
 });
 
 test('priority lists migrate into upstream metadata without changing selection, routing, or return mode', () => {
