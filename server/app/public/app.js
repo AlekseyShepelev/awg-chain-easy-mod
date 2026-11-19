@@ -597,15 +597,22 @@ function renderUpstreams(routing) {
     interfaceInfo.append(interfaceName, stateBadge(upstream.status === 'up' ? 'Running' : upstream.status, statusStyle));
     const endpointInfo = document.createElement('div');
     endpointInfo.className = 'resource-details';
-    const endpointValue = document.createElement('span');
-    endpointValue.className = 'mono';
+    const endpointValue = document.createElement('button');
+    endpointValue.type = 'button';
+    endpointValue.addEventListener('click', () => openUpstreamEdit(upstream, 'endpoint'));
+    endpointValue.className = 'mono upstream-edit-link';
     endpointValue.textContent = upstream.endpoint || '—';
     const portValue = document.createElement('span');
     portValue.className = 'secondary-value';
     portValue.textContent = t('Local UDP {port}{mode}', { port: upstream.listenPort || '—', mode: t(upstream.configuredListenPort ? ' · fixed' : ' · automatic') });
     if (upstream.configuredListenPort && !upstream.portInPublishedRange) portValue.textContent += t(' · outside published range');
     const name = document.createElement('strong');
-    name.textContent = upstream.name;
+    const nameLink = document.createElement('button');
+    nameLink.type = 'button';
+    nameLink.className = 'upstream-edit-link';
+    nameLink.textContent = upstream.name;
+    nameLink.addEventListener('click', () => openUpstreamEdit(upstream, 'name'));
+    name.append(nameLink);
     const heading = document.createElement('div');
     heading.className = 'upstream-name';
     heading.append(name);
@@ -1146,7 +1153,17 @@ elements['create-form'].addEventListener('submit', async (event) => {
   finally { submit.disabled = false; }
 });
 
+function suggestedUpstreamName() {
+  const upstreams = lastData?.routing.upstreams || [];
+  const taken = new Set(upstreams.map(({ name }) => name.toLowerCase()));
+  for (let index = upstreams.length + 2; ; index++) {
+    const name = index <= 26 ? 'Server ' + String.fromCharCode(64 + index) : 'Server ' + index;
+    if (!taken.has(name.toLowerCase())) return name;
+  }
+}
+
 elements['new-upstream-button'].addEventListener('click', () => {
+  elements['upstream-name'].placeholder = suggestedUpstreamName();
   text(elements['upstream-error'], '');
   elements['upstream-create-panel'].showModal();
   elements['upstream-name'].focus();
@@ -1168,7 +1185,7 @@ elements['upstream-form'].addEventListener('submit', async (event) => {
   try {
     await request('/api/routing/upstreams', {
       method: 'POST',
-      body: JSON.stringify({ name: elements['upstream-name'].value, config: elements['upstream-config'].value,
+      body: JSON.stringify({ name: elements['upstream-name'].value.trim() || elements['upstream-name'].placeholder || suggestedUpstreamName(), config: elements['upstream-config'].value,
         ...(elements['upstream-listen-port'].value ? { listenPort: Number(elements['upstream-listen-port'].value) } : {}) }),
     });
     elements['upstream-form'].reset();

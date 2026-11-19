@@ -354,3 +354,16 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 }
 .upstream-edit-body p { margin: 4px 0; }
 #upstream-edit-config textarea { height: 60px; }
+
+.upstream-edit-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.upstream-edit-link:hover { color: var(--color-accent); text-decoration: underline; }
