@@ -437,17 +437,50 @@ function parseCookies(request) {
   }));
 }
 
+const sessionFile = path.join(DATA_DIR, 'panel-sessions.json');
+const sessionEpoch = crypto.createHash('sha256').update(settings.passwordHash || '').digest('hex');
 const sessions = new Map();
+const sessionKey = token => crypto.createHash('sha256').update(token).digest('hex');
+
+function loadSessions() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(sessionFile, 'utf8'));
+    if (saved.epoch !== sessionEpoch || !Array.isArray(saved.entries)) return;
+    for (const [key, expiry] of saved.entries.slice(0, 1024)) {
+      if (/^[a-f0-9]{64}$/.test(key) && Number.isSafeInteger(expiry) && expiry > Date.now()) {
+        sessions.set(key, { expiresAt: expiry });
+      }
+    }
+  } catch (error) {
+    sessions.clear();
+    if (error.code !== 'ENOENT') console.warn('[awg-chain-easy] Unable to load panel sessions');
+  }
+}
+
+function persistSessions() {
+  const temporary = sessionFile + '.' + crypto.randomBytes(8).toString('hex');
+  try {
+    fs.writeFileSync(temporary, JSON.stringify({
+      epoch: sessionEpoch,
+      entries: [...sessions].filter(([, value]) => value.expiresAt > Date.now())
+        .map(([key, value]) => [key, value.expiresAt]),
+    }), { mode: 0o600, flag: 'wx', flush: true });
+    fs.renameSync(temporary, sessionFile);
+  } finally {
+    try { fs.unlinkSync(temporary); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+}
 const loginGuard = new LoginGuard((password) => verifyPassword(password, PASSWORD_FILE));
 
 function sessionFor(request) {
   const token = parseCookies(request).awg3_session;
-  const session = token && sessions.get(token);
+  const key = token && sessionKey(token);
+  const session = key && sessions.get(key);
   if (!session || session.expiresAt < Date.now()) {
-    if (token) sessions.delete(token);
+    if (key) sessions.delete(key);
     return null;
   }
-  return { token, ...session };
+  return { key, ...session };
 }
 
 function send(response, status, body, type = 'application/json; charset=utf-8', headers = {}) {
@@ -522,7 +555,9 @@ async function api(request, response, url) {
     for (const [key, session] of sessions) if (session.expiresAt <= Date.now()) sessions.delete(key);
     if (sessions.size >= 1024) throw Object.assign(new Error('Too many active sessions'), { status: 503 });
     const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(token, { expiresAt: Date.now() + settings.maxAgeMinutes * 60_000 });
+    const key = sessionKey(token);
+    sessions.set(key, { expiresAt: Date.now() + settings.maxAgeMinutes * 60_000 });
+    try { persistSessions(); } catch (error) { sessions.delete(key); throw error; }
     return send(response, 200, { success: true }, 'application/json; charset=utf-8', {
       'Set-Cookie': sessionCookie(token, settings.maxAgeMinutes * 60, settings.https),
     });
@@ -533,7 +568,8 @@ async function api(request, response, url) {
   if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request);
 
   if (url.pathname === '/api/session' && request.method === 'DELETE') {
-    sessions.delete(session.token);
+    sessions.delete(session.key);
+    try { persistSessions(); } catch (error) { sessions.set(session.key, { expiresAt: session.expiresAt }); throw error; }
     return send(response, 200, { success: true }, 'application/json; charset=utf-8', {
       'Set-Cookie': sessionCookie('', 0, settings.https),
     });
@@ -855,6 +891,7 @@ async function main() {
   await dnsProxy.start();
   const server = http.createServer({ requestTimeout: 10000, headersTimeout: 10000, keepAliveTimeout: 5000 }, handle);
   server.maxConnections = 128;
+  loadSessions();
   server.listen(settings.uiPort, '0.0.0.0', () => console.log(`[awg-chain-easy] Web UI listening on port ${settings.uiPort}`));
   let closing = false;
   const shutdown = async () => {

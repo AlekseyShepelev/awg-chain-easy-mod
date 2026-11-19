@@ -70,6 +70,10 @@
     'Some tunnels have the same saved priority. Assign different priorities to remove the tie.': 'У нескольких туннелей одинаковый сохранённый приоритет. Назначьте разные значения.',
     'Automatic return: {name}': 'Автовозврат: {name}',
     'Operating mode': 'Режим работы',
+    'Default': 'По умолчанию',
+    'Change operating mode': 'Изменить режим работы', 'Change mode': 'Переключить',
+    'Switch to the saved fixed route? Automatic failover will stop. Active connections may need to reconnect.': 'Перейти на сохранённый фиксированный маршрут? Автоматическое резервирование отключится. Активным соединениям может понадобиться переподключение.',
+    'Enable automatic failover? The default route will be selected by tunnel priority and availability. Active connections may need to reconnect.': 'Включить автоматическое резервирование? Маршрут будет выбран по приоритету и доступности туннелей. Активным соединениям может понадобиться переподключение.',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -620,23 +624,22 @@ function renderUpstreams(routing) {
   const routeName = current?.name ?? (effective?.type === 'direct' ? routeLabel(effective, upstreams) : null);
   const routeStatus = elements['failover-status'];
   routeStatus.replaceChildren();
-  if (routeName !== null) {
+  if (!enabled && routeName !== null) {
     const route = document.createElement('strong');
     route.className = 'upstream-route-value';
     route.textContent = routeName;
     routeStatus.append(t('Current route: {name}', { name: '' }), route);
-  } else {
+  } else if (!enabled || effective?.type === 'blocked') {
     routeStatus.append(t(effective?.type === 'blocked' ? 'Route blocked' : 'No route selected'));
   }
-  const onBackup = enabled && current?.failoverPriority > preferred;
   const separator = document.createElement('span');
   separator.className = 'upstream-route-separator';
   separator.setAttribute('aria-hidden', 'true');
   const failoverState = document.createElement('strong');
   failoverState.className = enabled ? 'upstream-failover-on' : 'upstream-failover-off';
   failoverState.textContent = t(enabled ? 'enabled' : 'disabled');
-  routeStatus.append(separator, t('Failover:'), ' ', failoverState);
-  if (onBackup) routeStatus.append(' · ', t('Backup route in use'));
+  if (routeStatus.childNodes.length) routeStatus.append(separator);
+  routeStatus.append(t('Failover:'), ' ', failoverState);
   const open = new Set([...elements['upstream-rows'].querySelectorAll('details[open]')].map((item) => item.closest('tr').dataset.upstreamId));
   const active = document.activeElement;
   const focusRow = active?.closest('#upstream-rows tr');
@@ -706,13 +709,8 @@ function renderUpstreams(routing) {
     const heading = document.createElement('div');
     heading.className = 'upstream-name';
     heading.append(name);
-    if (current?.id === upstream.id) {
-      const indicator = document.createElement('span');
-      indicator.className = 'upstream-current';
-      indicator.setAttribute('role', 'img');
-      indicator.setAttribute('aria-label', t('Current'));
-      indicator.title = t('Current');
-      heading.append(indicator);
+    if (!enabled && routing.defaultRoute.type === 'upstream' && routing.defaultRoute.upstreamId === upstream.id) {
+      heading.append(stateBadge('Default', 'running'));
     }
     if (enabled && upstream.enabled && upstream.failoverPriority != null) {
       heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', upstream.failoverPriority === preferred ? 'enabled' : 'enabled upstream-backup'));
@@ -725,6 +723,7 @@ function renderUpstreams(routing) {
     details.append(summary, interfaceInfo);
     endpointInfo.append(heading, endpointValue, details);
     const priority = button(upstream.failoverPriority == null ? 'Excluded' : String(upstream.failoverPriority), 'secondary', () => openUpstreamEdit(upstream, 'priority'));
+    priority.disabled = !enabled;
     priority.setAttribute('aria-label', t('Edit failover priority for {name}', { name: upstream.name }));
     const row = document.createElement('tr');
     row.classList.toggle('row-disabled', !upstream.enabled);
@@ -1458,9 +1457,7 @@ function renderRouteMode(routing) {
   routeControl('route-draft').hidden = !defaultRouteDirty;
   const eligible = routing.upstreams.filter(u => u.enabled && u.failoverPriority != null).sort((a,b) => a.failoverPriority-b.failoverPriority);
   const preferred = eligible[0];
-  const current = routing.effectiveDefaultRoute;
   routeFact('route-preferred', 'Preferred: {name}', preferred?.name || '—');
-  routeFact('route-current', 'Currently used: {name}', routeLabel(current || {type:'blocked'}, routing.upstreams), current?.type === 'blocked' ? 'upstream-failover-off' : 'upstream-failover-on');
   const duplicates = eligible.some((u, i) => i > 0 && u.failoverPriority === eligible[i - 1].failoverPriority);
   routeControl('route-duplicate').hidden = !duplicates;
   const autoReturn = routing.failover.config.autoFailback;
@@ -1490,8 +1487,13 @@ async function saveRouteMode(mode, route) {
     renderRouteMode(lastData.routing);
   }
 }
-for (const mode of ['fixed','automatic']) routeControl('mode-'+mode).addEventListener('click', () => {
-  if (lastData && mode !== routeMode) saveRouteMode(mode, lastData.routing.defaultRoute);
+for (const mode of ['fixed','automatic']) routeControl('mode-'+mode).addEventListener('click', async () => {
+  if (!lastData || mode === routeMode || routeSaving) return;
+  const fixed = mode === 'fixed';
+  if (await confirmAction('Change operating mode', fixed
+    ? 'Switch to the saved fixed route? Automatic failover will stop. Active connections may need to reconnect.'
+    : 'Enable automatic failover? The default route will be selected by tunnel priority and availability. Active connections may need to reconnect.',
+  'Change mode')) await saveRouteMode(mode, lastData.routing.defaultRoute);
 });
 elements['default-route'].addEventListener('change', () => {
   defaultRouteDirty = elements['default-route'].value !== routeValue(lastData.routing.defaultRoute);

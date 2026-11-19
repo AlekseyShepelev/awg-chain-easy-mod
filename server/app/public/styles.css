@@ -401,10 +401,10 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 .import-priority-disabled { opacity: .55; }
 #confirm-action-message { white-space: pre-line; }
 
-.fixed-route-table .upstream-priority-column { display: none; }
 #default-route-form > .segmented-switch { flex-wrap: wrap; align-self: flex-start; }
 
-#route-fixed, #route-automatic { height: 240px; overflow: auto; }
+#route-fixed, #route-automatic { min-height: 160px; }
+#route-return + p:not([hidden]), #route-duplicate + p { margin-top: var(--space-3); }
 .route-direction { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-2); }
 .route-direction > button { margin-top: 18px; }
 #route-draft { color: var(--color-warning, #f1ad55); }
