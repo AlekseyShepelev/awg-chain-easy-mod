@@ -37,7 +37,7 @@
     "Excluded from failover": "Исключён из резервирования",
     "Availability checks Internet access through the tunnel. Connection indicates handshake status.": "Доступность — результат проверки выхода в интернет через туннель. Подключение — состояние обмена ключами.",
     'Primary route': 'Основной', 'Check': 'Проверка', 'Successful': 'Успешная',
-    'Local UDP port': 'Локальный UDP-порт', 'Choose file': 'Выбрать файл',
+    'Add': 'Добавить', 'Local UDP port': 'Локальный UDP-порт', 'Choose file': 'Выбрать файл',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -611,7 +611,7 @@ function renderUpstreams(routing) {
       heading.append(indicator);
     }
     if (enabled && upstream.enabled && upstream.failoverPriority != null) {
-      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', 'enabled'));
+      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', upstream.failoverPriority === preferred ? 'enabled' : 'enabled upstream-backup'));
     }
     const details = document.createElement('details');
     details.open = open.has(upstream.id);
@@ -626,7 +626,7 @@ function renderUpstreams(routing) {
     row.classList.toggle('row-disabled', !upstream.enabled);
     row.append(
       cell('Server', endpointInfo, 'upstream-server'),
-      cell('Failover priority', priority, 'numeric'),
+      cell('Priority', priority, 'numeric'),
       cell('Availability', upstreamAvailability(upstream, failover), 'connection-column'),
       cell('Connection', upstreamConnectionBadge(upstream), 'connection-column'),
       cell('Handshake', time(upstream.latestHandshakeAt), 'numeric'),

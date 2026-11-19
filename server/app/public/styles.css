@@ -338,7 +338,17 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 #upstream-edit-dialog {
   height: min(570px, calc(100dvh - 32px));
   max-height: calc(100dvh - 32px);
-  overflow: auto;
+  overflow: hidden;
 }
+#upstream-edit-dialog[open] { display: flex; flex-direction: column; }
+#upstream-edit-form { flex: 1; min-height: 0; gap: var(--space-2); }
+#upstream-edit-form > :not(.upstream-edit-body) { flex: none; }
+.upstream-edit-body { flex: 1; min-height: 0; overflow: auto; }
 #upstream-edit-config:not([hidden]) { display: grid; gap: var(--space-2); }
+#upstream-edit-config textarea { display: block; height: clamp(48px, calc(100dvh - 470px), 112px); resize: none; }
+#upstream-edit-form .confirmation-actions { margin-top: 0; }
 #upstream-edit-filename { overflow-wrap: anywhere; }
+.status-badge.upstream-backup {
+  color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text-muted));
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
