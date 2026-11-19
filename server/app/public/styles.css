@@ -333,3 +333,12 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 .upstream-name strong { white-space: normal; overflow-wrap: anywhere; }
 
 .upstream-current { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #46b981; flex: none; }
+
+.upstream-footer.section-heading { border-top: 1px solid var(--color-line); }
+#upstream-edit-dialog {
+  height: min(570px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+#upstream-edit-config:not([hidden]) { display: grid; gap: var(--space-2); }
+#upstream-edit-filename { overflow-wrap: anywhere; }

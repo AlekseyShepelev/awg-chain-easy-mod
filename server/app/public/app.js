@@ -37,6 +37,7 @@
     "Excluded from failover": "Исключён из резервирования",
     "Availability checks Internet access through the tunnel. Connection indicates handshake status.": "Доступность — результат проверки выхода в интернет через туннель. Подключение — состояние обмена ключами.",
     'Primary route': 'Основной', 'Check': 'Проверка', 'Successful': 'Успешная',
+    'Local UDP port': 'Локальный UDP-порт', 'Choose file': 'Выбрать файл',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -224,8 +225,7 @@ const elements = Object.fromEntries([
   'rename-dialog', 'rename-title', 'close-rename', 'rename-form', 'rename-name', 'rename-route', 'rename-route-hint', 'client-route', 'client-route-hint', 'rename-error', 'rename-save', 'config-copy', 'config-vpn-text', 'config-download', 'config-dialog', 'config-title', 'config-text', 'config-loading', 'config-error', 'close-config-button',
   'peer-connection-dialog', 'peer-connection-title', 'close-peer-connection', 'peer-connection-form',
   'peer-connection-enabled', 'peer-connection-fields', 'peer-connection-endpoint', 'peer-connection-keepalive', 'peer-connection-error',
-  'upstream-listen-port', 'upstream-port-hint', 'upstream-port-dialog', 'upstream-port-title',
-  'close-upstream-port', 'upstream-port-form', 'upstream-port-value', 'upstream-port-range', 'upstream-port-error',
+  'upstream-listen-port', 'upstream-port-hint',
   'upstream-priority-dialog', 'upstream-priority-title', 'close-upstream-priority',
   'upstream-priority-form', 'upstream-priority-value', 'upstream-priority-error',
   'primary-nav', 'clients-page', 'routing-page', 'settings-page', 'about-page', 'about-version', 'about-commit', 'about-build-commit', 'about-awg', 'server-settings-form', 'settings-server-name', 'server-settings-message', 'dns-settings-form', 'dns-settings-rows', 'dns-settings-message', 'dns-add', 'dns-test', 'qr-settings-form', 'settings-qr-format', 'qr-settings-message', 'new-upstream-button', 'new-policy-button',
@@ -245,7 +245,6 @@ let refreshTimer;
 let configViewController = null;
 let editingPolicyId = null;
 let editingPeerId = null;
-let editingUpstreamId = null;
 let editingPriorityUpstreamId = null;
 let publishedUpstreamPorts = [];
 let failoverFormDirty = false;
@@ -445,16 +444,22 @@ const upstreamEditError = upstreamEditForm.querySelector('[role="alert"]');
 let upstreamEditId = null;
 
 function syncUpstreamEditMode() {
-  const endpoint = upstreamEditForm.elements.mode.value === 'endpoint';
+  const mode = upstreamEditForm.elements.mode.value;
+  const endpoint = mode === 'endpoint';
   document.querySelector('#upstream-edit-endpoint').hidden = !endpoint;
-  document.querySelector('#upstream-edit-config').hidden = endpoint;
+  document.querySelector('#upstream-edit-config').hidden = mode !== 'config';
+  document.querySelector('#upstream-edit-port').hidden = mode !== 'port';
+  upstreamEditForm.elements.listenPort.disabled = mode !== 'port';
   upstreamEditForm.elements.endpoint.required = endpoint;
-  upstreamEditForm.elements.config.required = !endpoint;
+  upstreamEditForm.elements.config.required = mode === 'config';
 }
 
 function openUpstreamEdit(upstream) {
   upstreamEditId = upstream.id;
   upstreamEditForm.reset();
+  document.querySelector('#upstream-edit-filename').textContent = '';
+  upstreamEditForm.elements.listenPort.value = upstream.configuredListenPort || '';
+  document.querySelector('#upstream-edit-port-range').textContent = publishedPortsHint();
   upstreamEditForm.elements.endpoint.value = upstream.endpoint || '';
   text(upstreamEditError, '');
   syncUpstreamEditMode();
@@ -467,6 +472,7 @@ upstreamEditDialog.addEventListener('close', () => {
   upstreamEditId = null;
   upstreamEditForm.reset();
 });
+document.querySelector('#upstream-edit-pick').addEventListener('click', () => upstreamEditForm.elements.file.click());
 upstreamEditForm.elements.file.addEventListener('change', async () => {
   const picker = upstreamEditForm.elements.file;
   const file = picker.files[0];
@@ -479,6 +485,7 @@ upstreamEditForm.elements.file.addEventListener('change', async () => {
     const config = await file.text();
     if (upstreamEditDialog.open && picker.files[0] === file) {
       upstreamEditForm.elements.config.value = config;
+      document.querySelector('#upstream-edit-filename').textContent = file.name;
       text(upstreamEditError, '');
     }
   } catch (error) {
@@ -493,11 +500,12 @@ upstreamEditForm.addEventListener('submit', async (event) => {
   const mode = upstreamEditForm.elements.mode.value;
   const payload = mode === 'endpoint'
     ? { mode, endpoint: upstreamEditForm.elements.endpoint.value }
-    : { mode, config: upstreamEditForm.elements.config.value };
+    : mode === 'port' ? { listenPort: Number(upstreamEditForm.elements.listenPort.value || 0) }
+      : { mode, config: upstreamEditForm.elements.config.value };
   text(upstreamEditError, '');
   submit.disabled = true;
   try {
-    await request(`/api/routing/upstreams/${id}/configuration`, { method: 'PUT', body: JSON.stringify(payload) });
+    await request(`/api/routing/upstreams/${id}${mode === 'port' ? '' : '/configuration'}`, { method: 'PUT', body: JSON.stringify(payload) });
     if (upstreamEditId === id) upstreamEditDialog.close();
     await refresh();
   } catch (error) {
@@ -507,14 +515,6 @@ upstreamEditForm.addEventListener('submit', async (event) => {
   }
 });
 
-function openUpstreamPort(upstream) {
-  editingUpstreamId = upstream.id;
-  text(elements['upstream-port-title'], 'Listen port: {name}', { name: upstream.name });
-  elements['upstream-port-value'].value = upstream.configuredListenPort || '';
-  elements['upstream-port-range'].textContent = publishedPortsHint();
-  text(elements['upstream-port-error'], '');
-  elements['upstream-port-dialog'].showModal();
-}
 
 function openUpstreamPriority(upstream) {
   editingPriorityUpstreamId = upstream.id;
@@ -554,7 +554,6 @@ function renderUpstreams(routing) {
     const actions = document.createElement('div');
     actions.className = 'row-actions upstream-actions';
     actions.append(button('Edit', 'secondary', () => openUpstreamEdit(upstream)));
-    actions.append(button('Port', 'secondary', () => openUpstreamPort(upstream)));
     const download = document.createElement('a');
     download.className = 'button secondary compact'; download.textContent = t('Download');
     download.href = `/api/routing/upstreams/${upstream.id}/configuration`;
@@ -576,7 +575,7 @@ function renderUpstreams(routing) {
       catch (error) { showMessage(error.message); }
     }));
     const upstreamButtons = [...actions.children]; actions.replaceChildren();
-    for (const group of [upstreamButtons.slice(0, 3), upstreamButtons.slice(3)]) {
+    for (const group of [upstreamButtons.slice(0, 2), upstreamButtons.slice(2)]) {
       const line = document.createElement('div'); line.className = 'upstream-action-line'; line.append(...group); actions.append(line);
     }
     const statusStyle = upstream.status === 'up' ? 'running' : upstream.status === 'disabled' ? 'disabled' : 'failed';
@@ -612,7 +611,7 @@ function renderUpstreams(routing) {
       heading.append(indicator);
     }
     if (enabled && upstream.enabled && upstream.failoverPriority != null) {
-      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', upstream.failoverPriority === preferred ? 'enabled' : 'disabled'));
+      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', 'enabled'));
     }
     const details = document.createElement('details');
     details.open = open.has(upstream.id);
@@ -1252,18 +1251,6 @@ elements['peer-connection-form'].addEventListener('submit', async (event) => {
     elements['peer-connection-dialog'].close();
     await refresh();
   } catch (error) { text(elements['peer-connection-error'], error.message); }
-});
-
-elements['close-upstream-port'].addEventListener('click', () => elements['upstream-port-dialog'].close());
-elements['upstream-port-dialog'].addEventListener('close', () => { editingUpstreamId = null; });
-elements['upstream-port-form'].addEventListener('submit', async (event) => {
-  event.preventDefault();
-  text(elements['upstream-port-error'], '');
-  try {
-    await request(`/api/routing/upstreams/${editingUpstreamId}`, { method: 'PUT', body: JSON.stringify({ listenPort: Number(elements['upstream-port-value'].value || 0) }) });
-    elements['upstream-port-dialog'].close();
-    await refresh();
-  } catch (error) { text(elements['upstream-port-error'], error.message); }
 });
 
 elements['close-upstream-priority'].addEventListener('click', () => elements['upstream-priority-dialog'].close());

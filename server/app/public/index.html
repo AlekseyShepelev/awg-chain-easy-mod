@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.1">
-  <script defer src="/app.js?v=2.2.1"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.2">
+  <script defer src="/app.js?v=2.2.2"></script>
 </head>
 <body>
   <header class="global-header">
@@ -114,7 +114,7 @@
         </section>
 
         <section class="resource-section spaced" aria-labelledby="upstreams-title">
-          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Import</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
+          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Server</th><th>Failover priority</th><th>Availability</th><th>Connection</th><th>Handshake</th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>
@@ -292,26 +292,23 @@
   <dialog id="upstream-edit-dialog" class="dialog" aria-labelledby="upstream-edit-title">
     <div class="dialog-heading"><h2 id="upstream-edit-title">Edit tunnel</h2></div>
     <form id="upstream-edit-form" class="stack-form">
-      <label><span>Edit mode</span><select name="mode"><option value="endpoint">Connection address</option><option value="config">Replace configuration</option></select></label>
+      <label><span>Edit mode</span><select name="mode"><option value="endpoint">Connection address</option><option value="config">Replace configuration</option><option value="port">Local UDP port</option></select></label>
       <label id="upstream-edit-endpoint"><span>Remote address and UDP port</span><input name="endpoint" placeholder="vpn.example.com:51820" spellcheck="false"></label>
+      <div id="upstream-edit-port" class="field" hidden>
+        <label for="upstream-edit-listen-port">Fixed local UDP port</label>
+        <input id="upstream-edit-listen-port" name="listenPort" type="number" min="1" max="65535" placeholder="Automatic">
+        <p id="upstream-edit-port-range" class="secondary-value"></p>
+        <p>Changing this port briefly restarts this upstream. Update the remote peer's endpoint to match. Leave blank for automatic allocation.</p>
+      </div>
       <div id="upstream-edit-config" hidden>
-        <label><span>Configuration file</span><input name="file" type="file" accept=".conf,text/plain"></label>
+        <div class="row-actions"><button id="upstream-edit-pick" type="button" class="button secondary compact">Choose file</button><span id="upstream-edit-filename" class="secondary-value"></span></div>
+        <input name="file" type="file" accept=".conf,text/plain" hidden>
         <label><span>Configuration text</span><textarea name="config" class="code-input" rows="8" spellcheck="false" maxlength="131072"></textarea></label>
         <p>The file can change the protocol and local port. Existing routing assignments and failover priority are kept.</p>
       </div>
       <p>Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.</p>
       <p class="form-error" role="alert"></p>
       <div class="confirmation-actions"><button id="upstream-edit-cancel" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Save</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="upstream-port-dialog" class="dialog" aria-labelledby="upstream-port-title">
-    <div class="dialog-heading"><h2 id="upstream-port-title">Upstream listen port</h2><button id="close-upstream-port" class="button secondary compact" type="button">Close</button></div>
-    <form id="upstream-port-form" class="stack-form spaced">
-      <div class="field"><label for="upstream-port-value">Fixed local UDP port</label><input id="upstream-port-value" type="number" min="1" max="65535" placeholder="Automatic"><p id="upstream-port-range" class="secondary-value"></p></div>
-      <p>Changing this port briefly restarts this upstream. Update the remote peer's endpoint to match. Leave blank for automatic allocation.</p>
-      <p id="upstream-port-error" class="form-error" role="alert"></p>
-      <div><button class="button primary" type="submit">Save port</button></div>
     </form>
   </dialog>
 
