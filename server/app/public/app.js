@@ -1441,7 +1441,6 @@ function validateDnsDraft() {
   return valid;
 }
 window.addEventListener('awg-language-change', () => { renderDnsDraft(); renderDnsTestResults(); });
-document.querySelector('#settings-page a[href="#upstreams-title"]').addEventListener('click', () => { showPage('routing'); });
 function renderDnsDraft() {
   const rows = elements['dns-settings-rows']; rows.replaceChildren();
   dnsDraft.forEach((address, index) => {
