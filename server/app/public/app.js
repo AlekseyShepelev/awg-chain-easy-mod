@@ -620,28 +620,11 @@ function renderUpstreams(routing) {
   }
   const enabled = failover.config.enabled;
   const effective = routing.effectiveDefaultRoute;
-  const current = effective?.type === 'upstream' ? upstreams.find((item) => item.id === effective.upstreamId) : null;
   const priorities = upstreams.filter((item) => item.enabled && item.failoverPriority != null).map((item) => item.failoverPriority);
   const preferred = Math.min(...priorities);
-  const routeName = current?.name ?? (effective?.type === 'direct' ? routeLabel(effective, upstreams) : null);
   const routeStatus = elements['failover-status'];
-  routeStatus.replaceChildren();
-  if (!enabled && routeName !== null) {
-    const route = document.createElement('strong');
-    route.className = 'upstream-route-value';
-    route.textContent = routeName;
-    routeStatus.append(t('Current route: {name}', { name: '' }), route);
-  } else if (!enabled || effective?.type === 'blocked') {
-    routeStatus.append(t(effective?.type === 'blocked' ? 'Route blocked' : 'No route selected'));
-  }
-  const separator = document.createElement('span');
-  separator.className = 'upstream-route-separator';
-  separator.setAttribute('aria-hidden', 'true');
-  const failoverState = document.createElement('strong');
-  failoverState.className = enabled ? 'upstream-failover-on' : 'upstream-failover-off';
-  failoverState.textContent = t(enabled ? 'enabled' : 'disabled');
-  if (routeStatus.childNodes.length) routeStatus.append(separator);
-  routeStatus.append(t('Failover:'), ' ', failoverState);
+  routeStatus.hidden = effective?.type !== 'blocked';
+  text(routeStatus, 'Route blocked');
   const open = new Set([...elements['upstream-rows'].querySelectorAll('details[open]')].map((item) => item.closest('tr').dataset.upstreamId));
   const active = document.activeElement;
   const focusRow = active?.closest('#upstream-rows tr');
@@ -712,7 +695,7 @@ function renderUpstreams(routing) {
     heading.className = 'upstream-name';
     heading.append(name);
     if (!enabled && routing.defaultRoute.type === 'upstream' && routing.defaultRoute.upstreamId === upstream.id) {
-      heading.append(stateBadge('Default', 'running'));
+      heading.append(stateBadge('Default', 'enabled'));
     }
     if (enabled && upstream.enabled && upstream.failoverPriority != null) {
       heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', upstream.failoverPriority === preferred ? 'enabled' : 'enabled upstream-backup'));
@@ -1495,6 +1478,10 @@ async function saveRouteMode(mode, route) {
 for (const mode of ['fixed','automatic']) routeControl('mode-'+mode).addEventListener('click', async () => {
   if (!lastData || mode === routeMode || routeSaving) return;
   const fixed = mode === 'fixed';
+  if (!fixed && lastData.routing.upstreams.filter(tunnel => tunnel.enabled && tunnel.failoverPriority != null).length < 2) {
+    text(elements['default-route-error'], 'Enable at least two tunnels with priorities');
+    return;
+  }
   if (await confirmAction('Change operating mode', fixed
     ? 'Switch to the saved fixed route? Automatic failover will stop. Active connections may need to reconnect.'
     : 'Enable automatic failover? The default route will be selected by tunnel priority and availability. Active connections may need to reconnect.',

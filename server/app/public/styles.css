@@ -413,3 +413,9 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 dialog#failover-settings { margin: auto; }
 
 .row-disabled .upstream-availability .secondary-value { opacity: .55; }
+
+.upstream-name .status-badge.enabled { border-width: 2px; }
+.upstream-name .status-badge.upstream-backup {
+  color: color-mix(in srgb, var(--color-accent) 28%, var(--color-text));
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-text-muted));
+}
