@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.10">
-  <script defer src="/app.js?v=2.2.10"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.3.0">
+  <script defer src="/app.js?v=2.3.0"></script>
 </head>
 <body>
   <header class="global-header">
@@ -113,6 +113,32 @@
           <p id="default-route-error" class="form-error" role="alert"></p>
         </section>
 
+        <section id="failover-settings" class="resource-section">
+          <div class="section-heading failover-heading">
+            <div><h2>Failover parameters</h2>
+          <p>Automatic failover checks upstream availability and switches the default route to another eligible tunnel when the current one fails. Enable it to edit the check parameters; disabling preserves their saved values.</p></div>
+            <div class="segmented-switch" role="group" aria-label="Failover parameters"><button id="failover-enable" class="button primary compact" type="button" aria-pressed="true">Enable</button><button id="failover-disable" class="button secondary compact" type="button" aria-pressed="false">Disable</button></div>
+          </div>
+          <form id="failover-form" class="stack-form failover-body">
+            <input id="failover-enabled" type="checkbox" hidden>
+            <fieldset id="failover-fields" class="failover-fields">
+            <p>Lower numbers are preferred. Equal-priority upstreams are interchangeable; the current choice stays selected while it works. Destination policies keep their selected routes.</p>
+            <p class="secondary-value">Set priorities in the <a href="#upstreams-title">Upstreams list</a>. Include at least two upstreams, including the saved default, and enable their tunnels. A blank priority excludes an upstream from failover.</p>
+            <div class="form-grid">
+              <div class="field"><label for="failover-interval">Check interval (seconds)</label><input id="failover-interval" type="number" min="5" max="300" value="10" required></div>
+              <div class="field"><label for="failover-timeout">Probe timeout (seconds)</label><input id="failover-timeout" type="number" min="1" max="30" value="5" required></div>
+              <div class="field"><label for="failover-failures">Failures before switching</label><input id="failover-failures" type="number" min="1" max="20" value="3" required></div>
+              <div class="field"><label for="failover-recovery">Successes before recovery</label><input id="failover-recovery" type="number" min="1" max="20" value="3" required></div>
+              <div class="field wide"><label for="failover-targets">HTTPS health-check URLs (one per line)</label><textarea id="failover-targets" class="code-input" rows="3" spellcheck="false" required></textarea><p class="secondary-value">One to three URLs. Any successful 2xx response passes the check; redirects do not. All included upstreams are checked.</p></div>
+            </div>
+            <label class="toggle-field"><input id="failover-auto-return" type="checkbox">Automatically return to a higher priority after recovery</label>
+            <p>If no candidate is usable, new default-route traffic is blocked. With automatic return off, a working upstream stays selected until it fails or you choose “Use higher priority”. Existing connections may need to reconnect after a switch.</p>
+            </fieldset>
+            <p id="failover-error" class="form-error" role="alert"></p>
+            <div><button class="button primary" type="submit">Save</button></div>
+          </form>
+        </section>
+
         <section class="resource-section spaced" aria-labelledby="upstreams-title">
           <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add tunnel</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
           <div class="table-wrap">
@@ -167,31 +193,7 @@
           <div><button class="button primary" type="submit">Save</button></div>
         </form>
       </section>
-          <section id="failover-settings" class="resource-section">
-            <div class="section-heading failover-heading">
-              <div><h2>Failover parameters</h2>
-            <p>Automatic failover checks upstream availability and switches the default route to another eligible tunnel when the current one fails. Enable it to edit the check parameters; disabling preserves their saved values.</p></div>
-              <div class="segmented-switch" role="group" aria-label="Failover parameters"><button id="failover-enable" class="button primary compact" type="button" aria-pressed="true">Enable</button><button id="failover-disable" class="button secondary compact" type="button" aria-pressed="false">Disable</button></div>
-            </div>
-            <form id="failover-form" class="stack-form failover-body">
-              <input id="failover-enabled" type="checkbox" hidden>
-              <fieldset id="failover-fields" class="failover-fields">
-              <p>Lower numbers are preferred. Equal-priority upstreams are interchangeable; the current choice stays selected while it works. Destination policies keep their selected routes.</p>
-              <p class="secondary-value">Set priorities in the <a href="#upstreams-title">Upstreams list</a>. Include at least two upstreams, including the saved default, and enable their tunnels. A blank priority excludes an upstream from failover.</p>
-              <div class="form-grid">
-                <div class="field"><label for="failover-interval">Check interval (seconds)</label><input id="failover-interval" type="number" min="5" max="300" value="10" required></div>
-                <div class="field"><label for="failover-timeout">Probe timeout (seconds)</label><input id="failover-timeout" type="number" min="1" max="30" value="5" required></div>
-                <div class="field"><label for="failover-failures">Failures before switching</label><input id="failover-failures" type="number" min="1" max="20" value="3" required></div>
-                <div class="field"><label for="failover-recovery">Successes before recovery</label><input id="failover-recovery" type="number" min="1" max="20" value="3" required></div>
-                <div class="field wide"><label for="failover-targets">HTTPS health-check URLs (one per line)</label><textarea id="failover-targets" class="code-input" rows="3" spellcheck="false" required></textarea><p class="secondary-value">One to three URLs. Any successful 2xx response passes the check; redirects do not. All included upstreams are checked.</p></div>
-              </div>
-              <label class="toggle-field"><input id="failover-auto-return" type="checkbox">Automatically return to a higher priority after recovery</label>
-              <p>If no candidate is usable, new default-route traffic is blocked. With automatic return off, a working upstream stays selected until it fails or you choose “Use higher priority”. Existing connections may need to reconnect after a switch.</p>
-              </fieldset>
-              <p id="failover-error" class="form-error" role="alert"></p>
-              <div><button class="button primary" type="submit">Save</button></div>
-            </form>
-          </section>
+
       <section class="create-panel">
         <h2>QR code format</h2>
         <p>Choose the format opened by the client QR button. Configuration QR (.conf) contains the native profile. Amnezia QR (vpn://) includes the server name and may cycle through several frames; scan all frames in Amnezia VPN.</p>
