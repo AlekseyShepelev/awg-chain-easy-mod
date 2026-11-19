@@ -331,3 +331,5 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 .row-disabled .upstream-server { opacity: 1; }
 .row-disabled .upstream-server :is(.upstream-name, .mono, summary, .secondary-value) { opacity: .45; }
 .upstream-name strong { white-space: normal; overflow-wrap: anywhere; }
+
+.upstream-current { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #46b981; flex: none; }

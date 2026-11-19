@@ -36,6 +36,7 @@
     "Checks disabled": "Проверка выключена",
     "Excluded from failover": "Исключён из резервирования",
     "Availability checks Internet access through the tunnel. Connection indicates handshake status.": "Доступность — результат проверки выхода в интернет через туннель. Подключение — состояние обмена ключами.",
+    'Primary route': 'Основной', 'Check': 'Проверка', 'Successful': 'Успешная',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -602,9 +603,16 @@ function renderUpstreams(routing) {
     const heading = document.createElement('div');
     heading.className = 'upstream-name';
     heading.append(name);
-    if (current?.id === upstream.id) heading.append(stateBadge('Current', 'running'));
+    if (current?.id === upstream.id) {
+      const indicator = document.createElement('span');
+      indicator.className = 'upstream-current';
+      indicator.setAttribute('role', 'img');
+      indicator.setAttribute('aria-label', t('Current'));
+      indicator.title = t('Current');
+      heading.append(indicator);
+    }
     if (enabled && upstream.enabled && upstream.failoverPriority != null) {
-      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Preferred' : 'Backup', 'disabled'));
+      heading.append(stateBadge(upstream.failoverPriority === preferred ? 'Primary route' : 'Backup', upstream.failoverPriority === preferred ? 'enabled' : 'disabled'));
     }
     const details = document.createElement('details');
     details.open = open.has(upstream.id);
@@ -713,8 +721,8 @@ function upstreamAvailability(upstream, {config, health}) {
   const box = document.createElement('div');
   box.className = 'resource-details';
   box.append(stateBadge(label, tone));
-  for (const [key, value, fallback] of [['Last checked', times?.checkedAt, 'Not yet checked'],
-      ['Last successful check', times?.lastSuccessAt, 'Never succeeded']]) {
+  for (const [key, value, fallback] of [['Check', times?.checkedAt, 'Not yet checked'],
+      ['Successful', times?.lastSuccessAt, 'Never succeeded']]) {
     const line = document.createElement('span');
     line.className = 'secondary-value';
     line.textContent = t(key) + ': ' + (value ? new Date(value).toLocaleTimeString(I18N.locale) : t(fallback));
