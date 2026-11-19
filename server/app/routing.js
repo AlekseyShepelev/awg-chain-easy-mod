@@ -293,6 +293,57 @@ class RoutingManager {
     });
   }
 
+  async updateUpstreamConfig(id, input) {
+    return this.enqueue(async () => {
+      const upstream = this.state.upstreams[id];
+      if (!upstream) throw httpError('Upstream not found', 404);
+      const file = this.configPath(id);
+      const original = await fsp.readFile(file, 'utf8');
+      let config;
+      if (input?.mode === 'endpoint' && typeof input.endpoint === 'string') {
+        const endpoint = input.endpoint.trim();
+        if (!/^[a-z0-9.-]+:\d{1,5}$/i.test(endpoint)) throw httpError('Upstream Endpoint must be an IPv4 address or hostname plus a valid port');
+        let count = 0;
+        config = original.replace(/^([ \t]*Endpoint[ \t]*=[ \t]*)[^\r\n]+/gim, (_, prefix) => {
+          count++;
+          return prefix + endpoint;
+        });
+        if (count !== 1) throw httpError('Expected one upstream Endpoint');
+      } else if (input?.mode === 'config' && typeof input.config === 'string') {
+        config = input.config;
+      } else {
+        throw httpError('Select an upstream edit mode');
+      }
+      if (!config.endsWith('\n')) config += '\n';
+      const details = this.validateUpstreamConfig(config);
+      this.validatePublishedPort(details.listenPort);
+      this.assertUpstreamPortAvailable(details.listenPort, id);
+      await this.validateWithAwgQuick(config);
+      if (config === original) return;
+      const protocol = upstream.protocol;
+      await atomicWrite(file + '.before-edit', original);
+      try {
+        if (upstream.enabled) await this.stopUpstream(upstream);
+        await atomicWrite(file, config);
+        upstream.protocol = details.protocol;
+        if (upstream.enabled) await this.startUpstream(upstream);
+        await this.save();
+        await this.reconcile();
+      } catch (error) {
+        if (upstream.enabled) await this.stopUpstream(upstream);
+        await atomicWrite(file, original);
+        upstream.protocol = protocol;
+        await this.save();
+        if (upstream.enabled) {
+          try { await this.startUpstream(upstream); }
+          catch (_) { /* The runtime snapshot reports the restart failure. */ }
+        }
+        await this.reconcile();
+        throw httpError('Unable to apply upstream configuration; previous configuration restored', error.status || 400);
+      }
+    });
+  }
+
   allocateSlot() {
     const used = new Set(Object.values(this.state.upstreams).map((item) => item.slot));
     for (let slot = 0; slot < MAX_UPSTREAMS; slot += 1) if (!used.has(slot)) return slot;

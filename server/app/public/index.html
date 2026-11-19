@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.1.8">
-  <script defer src="/app.js?v=2.1.8"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.1.9">
+  <script defer src="/app.js?v=2.1.9"></script>
 </head>
 <body>
   <header class="global-header">
@@ -297,6 +297,22 @@
       <p>Changing priority keeps the tunnel running. Downloaded configs include the current priority as a comment.</p>
       <p id="upstream-priority-error" class="form-error" role="alert"></p>
       <div><button class="button primary" type="submit">Save priority</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="upstream-edit-dialog" class="dialog" aria-labelledby="upstream-edit-title">
+    <div class="dialog-heading"><h2 id="upstream-edit-title">Edit tunnel</h2></div>
+    <form id="upstream-edit-form" class="stack-form">
+      <label><span>Edit mode</span><select name="mode"><option value="endpoint">Connection address</option><option value="config">Replace configuration</option></select></label>
+      <label id="upstream-edit-endpoint"><span>Remote address and UDP port</span><input name="endpoint" placeholder="vpn.example.com:51820" spellcheck="false"></label>
+      <div id="upstream-edit-config" hidden>
+        <label><span>Configuration file</span><input name="file" type="file" accept=".conf,text/plain"></label>
+        <label><span>Configuration text</span><textarea name="config" class="code-input" rows="8" spellcheck="false" maxlength="131072"></textarea></label>
+        <p>The file can change the protocol and local port. Existing routing assignments and failover priority are kept.</p>
+      </div>
+      <p>Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.</p>
+      <p class="form-error" role="alert"></p>
+      <div class="confirmation-actions"><button id="upstream-edit-cancel" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Save</button></div>
     </form>
   </dialog>
 

@@ -669,6 +669,10 @@ async function api(request, response, url) {
       const config = await routing.exportUpstreamConfig(upstreamMatch[1]);
       return send(response, 200, config, 'text/plain; charset=utf-8', { 'Content-Disposition': `attachment; filename="up-${upstreamMatch[1].slice(0, 8)}.conf"` });
     }
+    if (request.method === 'PUT' && upstreamMatch[2] === 'configuration') {
+      await routing.updateUpstreamConfig(upstreamMatch[1], await readJson(request));
+      return send(response, 200, { success: true });
+    }
     if (request.method === 'PUT' && upstreamMatch[2] === 'failover-priority') {
       const body = await readJson(request);
       if (!body || !Object.hasOwn(body, 'failoverPriority')) throw Object.assign(new Error('failoverPriority is required; use null to exclude the upstream'), { status: 400 });

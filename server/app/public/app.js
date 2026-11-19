@@ -8,6 +8,17 @@
     'Automatic failover checks upstream availability and switches the default route to another eligible tunnel when the current one fails. Enable it to edit the check parameters; disabling preserves their saved values.': 'Автоматическое резервирование проверяет доступность выходных туннелей и при отказе текущего переключает маршрут по умолчанию на другой подходящий туннель. Включите резервирование, чтобы изменить параметры проверок. При выключении сохранённые значения не теряются.',
 
     'Export': 'Экспорт', 'Export: {name}': 'Экспорт: {name}',
+    "Edit tunnel": "Изменить туннель",
+    "Edit mode": "Что изменить",
+    "Connection address": "Адрес подключения",
+    "Replace configuration": "Заменить конфигурацию",
+    "Remote address and UDP port": "Удалённый адрес и UDP-порт",
+    "Configuration file": "Файл конфигурации",
+    "Configuration text": "Текст конфигурации",
+    "The file can change the protocol and local port. Existing routing assignments and failover priority are kept.": "Файл может изменить протокол и локальный порт. Привязки маршрутов и приоритет резервирования сохраняются.",
+    "Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.": "При сохранении включённый туннель перезапустится. Затем проверьте, появился ли свежий обмен ключами.",
+    "Unable to apply upstream configuration; previous configuration restored": "Не удалось применить конфигурацию. Предыдущая конфигурация восстановлена.",
+    "Configuration file is too large": "Файл конфигурации слишком большой",
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -410,6 +421,74 @@ function publishedPortsHint() {
   return publishedUpstreamPorts.length ? t('Configured published UDP ports: {ports}. Apply Compose changes before using a new range.', { ports: publishedUpstreamPorts.join(', ') }) : t('Published port range is unavailable.');
 }
 
+const upstreamEditDialog = document.querySelector('#upstream-edit-dialog');
+const upstreamEditForm = document.querySelector('#upstream-edit-form');
+const upstreamEditError = upstreamEditForm.querySelector('[role="alert"]');
+let upstreamEditId = null;
+
+function syncUpstreamEditMode() {
+  const endpoint = upstreamEditForm.elements.mode.value === 'endpoint';
+  document.querySelector('#upstream-edit-endpoint').hidden = !endpoint;
+  document.querySelector('#upstream-edit-config').hidden = endpoint;
+  upstreamEditForm.elements.endpoint.required = endpoint;
+  upstreamEditForm.elements.config.required = !endpoint;
+}
+
+function openUpstreamEdit(upstream) {
+  upstreamEditId = upstream.id;
+  upstreamEditForm.reset();
+  upstreamEditForm.elements.endpoint.value = upstream.endpoint || '';
+  text(upstreamEditError, '');
+  syncUpstreamEditMode();
+  upstreamEditDialog.showModal();
+}
+
+upstreamEditForm.elements.mode.addEventListener('change', syncUpstreamEditMode);
+document.querySelector('#upstream-edit-cancel').addEventListener('click', () => upstreamEditDialog.close());
+upstreamEditDialog.addEventListener('close', () => {
+  upstreamEditId = null;
+  upstreamEditForm.reset();
+});
+upstreamEditForm.elements.file.addEventListener('change', async () => {
+  const picker = upstreamEditForm.elements.file;
+  const file = picker.files[0];
+  if (!file) return;
+  if (file.size > 131072) {
+    text(upstreamEditError, 'Configuration file is too large');
+    return;
+  }
+  try {
+    const config = await file.text();
+    if (upstreamEditDialog.open && picker.files[0] === file) {
+      upstreamEditForm.elements.config.value = config;
+      text(upstreamEditError, '');
+    }
+  } catch (error) {
+    if (upstreamEditDialog.open && picker.files[0] === file) text(upstreamEditError, error.message);
+  }
+});
+upstreamEditForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const submit = upstreamEditForm.querySelector('[type="submit"]');
+  if (submit.disabled || !upstreamEditId) return;
+  const id = upstreamEditId;
+  const mode = upstreamEditForm.elements.mode.value;
+  const payload = mode === 'endpoint'
+    ? { mode, endpoint: upstreamEditForm.elements.endpoint.value }
+    : { mode, config: upstreamEditForm.elements.config.value };
+  text(upstreamEditError, '');
+  submit.disabled = true;
+  try {
+    await request(`/api/routing/upstreams/${id}/configuration`, { method: 'PUT', body: JSON.stringify(payload) });
+    if (upstreamEditId === id) upstreamEditDialog.close();
+    await refresh();
+  } catch (error) {
+    if (upstreamEditId === id) text(upstreamEditError, error.message);
+  } finally {
+    submit.disabled = false;
+  }
+});
+
 function openUpstreamPort(upstream) {
   editingUpstreamId = upstream.id;
   text(elements['upstream-port-title'], 'Listen port: {name}', { name: upstream.name });
@@ -434,6 +513,7 @@ function renderUpstreams(upstreams) {
   for (const upstream of upstreams) {
     const actions = document.createElement('div');
     actions.className = 'row-actions upstream-actions';
+    actions.append(button('Edit', 'secondary', () => openUpstreamEdit(upstream)));
     actions.append(button('Port', 'secondary', () => openUpstreamPort(upstream)));
     const download = document.createElement('a');
     download.className = 'button secondary compact'; download.textContent = t('Download');
