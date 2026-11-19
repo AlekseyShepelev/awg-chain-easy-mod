@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.4">
-  <script defer src="/app.js?v=2.2.4"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.5">
+  <script defer src="/app.js?v=2.2.5"></script>
 </head>
 <body>
   <header class="global-header">
@@ -283,10 +283,10 @@
   <dialog id="upstream-edit-dialog" class="dialog" aria-labelledby="upstream-edit-title">
     <div class="dialog-heading"><h2 id="upstream-edit-title">Edit tunnel</h2></div>
     <form id="upstream-edit-form" class="stack-form">
-      <label><span>Edit mode</span><select name="mode"><option value="endpoint">Connection address</option><option value="name">Tunnel name</option><option value="config">Replace configuration (.conf)</option><option value="port">Local UDP port</option><option value="priority">Failover priority</option></select></label>
-      <label id="upstream-edit-endpoint"><span>Remote address and UDP port</span><input name="endpoint" placeholder="vpn.example.com:51820" spellcheck="false"></label>
+      <div class="field wide"><label for="upstream-edit-field-mode">Edit mode</label><select id="upstream-edit-field-mode" name="mode"><option value="endpoint">Connection address</option><option value="name">Tunnel name</option><option value="config">Replace configuration (.conf)</option><option value="port">Local UDP port</option><option value="priority">Failover priority</option></select></div>
+      <div id="upstream-edit-endpoint" class="field wide"><label for="upstream-edit-field-endpoint">Remote address and UDP port</label><input id="upstream-edit-field-endpoint" name="endpoint" placeholder="vpn.example.com:51820" spellcheck="false"></div>
       <div class="upstream-edit-body">
-        <label id="upstream-edit-name" hidden><span>Tunnel name</span><input name="tunnelName" maxlength="64"></label>
+        <div id="upstream-edit-name" hidden class="field wide"><label for="upstream-edit-field-tunnelName">Tunnel name</label><input id="upstream-edit-field-tunnelName" name="tunnelName" maxlength="64"></div>
         <div id="upstream-edit-priority" class="field" hidden>
           <label for="upstream-edit-priority-value">Failover priority</label>
           <input id="upstream-edit-priority-value" name="priority" type="number" min="1" max="10000" placeholder="Excluded">
@@ -301,7 +301,7 @@
       <div id="upstream-edit-config" hidden>
         <div class="row-actions"><button id="upstream-edit-pick" type="button" class="button secondary compact">Choose file</button><span id="upstream-edit-filename" class="secondary-value"></span></div>
         <input name="file" type="file" accept=".conf,text/plain" hidden>
-        <label><span>Configuration text</span><textarea name="config" class="code-input" rows="8" spellcheck="false" maxlength="131072"></textarea></label>
+        <div class="field wide"><label for="upstream-edit-field-config">Configuration text</label><textarea id="upstream-edit-field-config" name="config" class="code-input" rows="8" spellcheck="false" maxlength="131072"></textarea></div>
         <p>The file can change the protocol and local port. Existing routing assignments and failover priority are kept.</p>
       </div>
       <p id="upstream-edit-restart">Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.</p>
