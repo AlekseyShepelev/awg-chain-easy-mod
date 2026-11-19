@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.6">
-  <script defer src="/app.js?v=2.2.6"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.7">
+  <script defer src="/app.js?v=2.2.7"></script>
 </head>
 <body>
   <header class="global-header">
@@ -228,7 +228,7 @@
           </div>
           <form id="upstream-form" class="stack-form">
             <div class="field"><label for="upstream-name">Name</label><input id="upstream-name" maxlength="64"></div>
-            <div class="field wide"><label for="upstream-file">Config file</label><input id="upstream-file" type="file" accept=".conf,text/plain"></div>
+            <div class="field wide"><span id="upstream-file-label" class="import-file-label">Config file</span><div class="import-file-picker"><button type="button" id="upstream-file-pick" class="button secondary compact" aria-describedby="upstream-file-label">Choose file</button><span id="upstream-file-name" class="secondary-value" role="status"></span></div><input id="upstream-file" type="file" accept=".conf,text/plain" hidden></div>
             <div class="field wide"><label for="upstream-config">Configuration</label><textarea id="upstream-config" class="code-input" rows="10" spellcheck="false" required></textarea><p class="secondary-value">An optional <code># FailoverPriority = 20</code> comment sets this upstream's failover priority. You can also set it after import.</p></div>
             <div class="field"><label for="upstream-listen-port">Fixed local UDP port (optional)</label><input id="upstream-listen-port" type="number" min="1" max="65535" placeholder="Keep imported port"><p id="upstream-port-hint" class="secondary-value">Use a published port when the upstream initiates connections.</p></div>
             <div><button class="button primary" type="submit">Import and start</button></div>

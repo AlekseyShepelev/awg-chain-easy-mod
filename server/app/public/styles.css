@@ -367,3 +367,14 @@ tbody tr:hover { background: var(--color-panel-subtle); }
   cursor: pointer;
 }
 .upstream-edit-link:hover { color: var(--color-accent); text-decoration: underline; }
+
+.upstream-name { column-gap: var(--space-2); }
+.status-badge.upstream-backup {
+  color: color-mix(in srgb, var(--color-accent) 45%, var(--color-text-muted));
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
+}
+.upstream-route-value { color: var(--color-accent); }
+.import-file-label { display: block; margin-bottom: var(--space-1); font-size: 12px; font-weight: 650; }
+.import-file-picker { display: flex; align-items: center; gap: var(--space-2); }
+.import-file-picker button { flex: none; }
+#upstream-file-name { overflow-wrap: anywhere; min-width: 0; }

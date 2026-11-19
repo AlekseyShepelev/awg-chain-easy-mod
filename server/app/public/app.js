@@ -545,12 +545,20 @@ function renderUpstreams(routing) {
   const current = effective?.type === 'upstream' ? upstreams.find((item) => item.id === effective.upstreamId) : null;
   const priorities = upstreams.filter((item) => item.enabled && item.failoverPriority != null).map((item) => item.failoverPriority);
   const preferred = Math.min(...priorities);
-  const route = current ? t('Current route: {name}', { name: current.name })
-    : effective?.type === 'direct' ? t('Current route: {name}', { name: routeLabel(effective, upstreams) })
-      : t(effective?.type === 'blocked' ? 'Route blocked' : 'No route selected');
+  const routeName = current?.name ?? (effective?.type === 'direct' ? routeLabel(effective, upstreams) : null);
+  const routeStatus = elements['failover-status'];
+  routeStatus.replaceChildren();
+  if (routeName !== null) {
+    const route = document.createElement('strong');
+    route.className = 'upstream-route-value';
+    route.textContent = routeName;
+    routeStatus.append(t('Current route: {name}', { name: '' }), route);
+  } else {
+    routeStatus.append(t(effective?.type === 'blocked' ? 'Route blocked' : 'No route selected'));
+  }
   const onBackup = enabled && current?.failoverPriority > preferred;
-  elements['failover-status'].textContent = [route, t(enabled ? 'Failover enabled' : 'Failover disabled'),
-    ...(onBackup ? [t('Backup route in use')] : [])].join(' · ');
+  routeStatus.append(' · ', stateBadge(enabled ? 'Failover enabled' : 'Failover disabled', enabled ? 'running' : 'disabled'));
+  if (onBackup) routeStatus.append(' · ', t('Backup route in use'));
   const open = new Set([...elements['upstream-rows'].querySelectorAll('details[open]')].map((item) => item.closest('tr').dataset.upstreamId));
   const active = document.activeElement;
   const focusRow = active?.closest('#upstream-rows tr');
@@ -1174,9 +1182,23 @@ elements['cancel-upstream-button'].addEventListener('click', () => {
 });
 elements['upstream-create-panel'].addEventListener('close', () => text(elements['upstream-error'], ''));
 elements['policy-create-panel'].addEventListener('close', resetPolicyEditor);
-elements['upstream-file'].addEventListener('change', async () => {
-  const file = elements['upstream-file'].files[0];
-  if (file) elements['upstream-config'].value = await file.text();
+const importFile = elements['upstream-file'];
+const importFileName = document.querySelector('#upstream-file-name');
+document.querySelector('#upstream-file-pick').addEventListener('click', () => importFile.click());
+elements['upstream-form'].addEventListener('reset', () => { importFileName.textContent = ''; });
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFileName.textContent = '';
+  if (!file) return;
+  try {
+    const config = await file.text();
+    if (importFile.files[0] !== file) return;
+    elements['upstream-config'].value = config;
+    importFileName.textContent = file.name;
+    text(elements['upstream-error'], '');
+  } catch (error) {
+    if (importFile.files[0] === file) text(elements['upstream-error'], error.message);
+  }
 });
 elements['upstream-form'].addEventListener('submit', async (event) => {
   event.preventDefault();
