@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.9">
-  <script defer src="/app.js?v=2.2.9"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.10">
+  <script defer src="/app.js?v=2.2.10"></script>
 </head>
 <body>
   <header class="global-header">
@@ -230,9 +230,9 @@
             <div class="field"><label for="upstream-name">Name</label><input id="upstream-name" maxlength="64"></div>
             <div class="field wide"><span id="upstream-file-label" class="import-file-label">Config file</span><div class="import-file-picker"><button type="button" id="upstream-file-pick" class="button secondary compact" aria-describedby="upstream-file-label">Choose file</button><span id="upstream-file-name" class="secondary-value" role="status"></span></div><input id="upstream-file" type="file" accept=".conf,text/plain" hidden></div>
             <div class="field wide"><label for="upstream-config">Configuration</label><textarea id="upstream-config" class="code-input" rows="10" spellcheck="false" required></textarea><p class="secondary-value">An optional <code># FailoverPriority = 20</code> comment sets this upstream's failover priority. You can also set it after import.</p></div>
-            <div class="field"><label for="upstream-listen-port">Fixed local UDP port (optional)</label><input id="upstream-listen-port" type="number" min="1" max="65535" placeholder="Keep imported port"><p id="upstream-port-hint" class="secondary-value">Use a published port when the upstream initiates connections.</p></div>
-            <label class="toggle-field"><input id="import-failover" type="checkbox">Participate in failover</label>
-            <div class="field" id="import-priority-field" hidden><label for="import-priority">Priority</label><input id="import-priority" type="number" min="1" max="10000"><p class="secondary-value">Lower numbers are preferred.</p></div>
+            <div class="field"><label for="upstream-listen-port">Fixed local UDP port (optional)</label><input id="upstream-listen-port" type="number" min="1" max="65535" placeholder="Keep imported port"></div><p id="upstream-port-hint" class="secondary-value">Use a published port when the upstream initiates connections.</p>
+            <div class="import-failover-row"><label class="toggle-field"><input id="import-failover" type="checkbox">Include in failover</label>
+            <div class="field" id="import-priority-field"><label for="import-priority">Priority</label><input id="import-priority" type="number" min="1" max="10000" disabled><p class="secondary-value">Lower numbers are preferred.</p></div></div>
             <div><button class="button primary" type="submit">Import and start</button></div>
           </form>
           <p id="upstream-error" class="form-error" role="alert"></p>

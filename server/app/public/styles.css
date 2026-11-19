@@ -395,3 +395,8 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 }
 .upstream-failover-on { color: var(--color-success, #46b981); }
 .upstream-failover-off { color: var(--color-danger, #ff7878); }
+
+#import-priority-field { width: min(160px, 100%); }
+.import-failover-row { display: flex; align-items: center; gap: var(--space-3); }
+.import-priority-disabled { opacity: .55; }
+#confirm-action-message { white-space: pre-line; }

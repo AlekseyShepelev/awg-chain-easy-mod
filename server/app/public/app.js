@@ -41,11 +41,13 @@
     'Add tunnel': 'Добавить туннель', 'Tunnel name': 'Имя туннеля', 'Name in client profiles': 'Имя в профилях клиентов', 'Name in panel': 'Имя в панели', 'Invalid panel name': 'Имя в панели должно содержать не более 64 символов без управляющих знаков',
     'Direct via eth0 ({name})': 'Напрямую через eth0 ({name})', 'Replace configuration (.conf)': 'Заменить конфигурацию (.conf)',
     'Failover:': 'Резервирование:', 'enabled': 'включено', 'disabled': 'выключено',
-    'Participate in failover': 'Участвовать в резервировании', 'Lower numbers are preferred.': 'Чем меньше число, тем выше приоритет.',
-    'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.': 'Туннель участвует в резервировании (приоритет {priority}). После удаления он больше не будет использоваться для автоматического переключения.',
+    'Include in failover': 'Добавить в резервирование', 'Lower numbers are preferred.': 'Чем меньше число, тем выше приоритет.',
+    'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.': 'Туннель сейчас участвует в резервировании (приоритет {priority}). После удаления он больше не будет использоваться для автоматического переключения.',
     'Reassign the clients pinned to this tunnel before deleting it.': 'Перед удалением выберите другой маршрут для клиентов, закреплённых за этим туннелем.',
     'Choose another default route before deleting this tunnel.': 'Перед удалением выберите другое направление в блоке «Маршрут по умолчанию».',
     'Change the routing rules that use this tunnel before deleting it.': 'Перед удалением измените направление в правилах маршрутизации, использующих этот туннель.',
+    'Delete tunnel “{name}”?': 'Удалить туннель «{name}»?',
+    'Its imported private configuration will be deleted.': 'Его импортированная приватная конфигурация будет удалена.',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -325,8 +327,8 @@ function confirmAction(title, message, acceptLabel, values = {}, action = null, 
   const dialog = elements['confirm-action-dialog'];
   if (dialog.open || pendingConfirmation) return Promise.resolve(false);
   text(elements['confirm-action-title'], title);
-  text(elements['confirm-action-message'], message, values);
-  if (warning) elements['confirm-action-message'].append(' ' + t(warning, values));
+  const messageNode = elements['confirm-action-message'];
+  messageNode.textContent = [...[message].flat(), warning].filter(Boolean).map(key => t(key, values)).join('\n\n');
   confirmedAction = action;
   confirmationError.hidden = true;
   confirmationError.textContent = '';
@@ -626,7 +628,7 @@ function renderUpstreams(routing) {
       } catch (error) { showMessage(error.message); }
     }));
     actions.append(button('Delete', 'danger', async () => {
-      const removed = await confirmAction('Delete upstream', 'Delete upstream “{name}”? Its imported private config will be removed.', 'Delete upstream',
+      const removed = await confirmAction('Delete upstream', ['Delete tunnel “{name}”?', 'Its imported private configuration will be deleted.'], 'Delete upstream',
         { name: upstream.name, priority: upstream.failoverPriority },
         () => request(`/api/routing/upstreams/${upstream.id}`, { method: 'DELETE' }),
         upstream.failoverPriority == null ? '' : 'This tunnel participates in failover (priority {priority}). Deleting it removes it from automatic switching.');
@@ -786,7 +788,7 @@ function upstreamAvailability(upstream, {config, health}) {
   box.className = 'resource-details';
   box.append(stateBadge(label, tone));
   for (const [key, value, fallback] of [['Check', times?.checkedAt, 'Not yet checked'],
-      ['Successful', times?.lastSuccessAt, 'Never succeeded']]) {
+      ['Successful', times?.lastSuccessAt, '—']]) {
     const line = document.createElement('span');
     line.className = 'secondary-value';
     line.textContent = t(key) + ': ' + (value ? new Date(value).toLocaleTimeString(I18N.locale) : t(fallback));
@@ -1214,6 +1216,7 @@ function suggestedUpstreamName() {
 }
 
 elements['new-upstream-button'].addEventListener('click', () => {
+  if (!importPriority.value) importPriority.value = suggestedImportPriority();
   syncImportPriority();
   elements['upstream-name'].placeholder = suggestedUpstreamName();
   text(elements['upstream-error'], '');
@@ -1228,14 +1231,18 @@ elements['upstream-create-panel'].addEventListener('close', () => text(elements[
 elements['policy-create-panel'].addEventListener('close', resetPolicyEditor);
 const importPriority = document.querySelector('#import-priority');
 const importFailover = document.querySelector('#import-failover');
+function suggestedImportPriority() {
+  const priorities = (lastData?.routing.upstreams || []).map(tunnel => tunnel.failoverPriority ?? 0);
+  return Math.min(10000, Math.max(0, ...priorities) + 10);
+}
 function syncImportPriority() {
-  document.querySelector('#import-priority-field').hidden = !importFailover.checked;
+  document.querySelector('#import-priority-field').classList.toggle('import-priority-disabled', !importFailover.checked);
   importPriority.disabled = !importFailover.checked;
   importPriority.required = importFailover.checked;
 }
 function readImportPriority() {
   const match = elements['upstream-config'].value.match(/^\s*#\s*FailoverPriority\s*=\s*(\d+)\s*$/im);
-  importPriority.value = match?.[1] || '';
+  importPriority.value = match?.[1] || suggestedImportPriority();
   importFailover.checked = Boolean(match);
   syncImportPriority();
 }
