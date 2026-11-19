@@ -36,10 +36,10 @@ module.exports = async function exerciseFailover(api, upstream, primaryId) {
     assert.fail(description);
   }
   try {
-    await api('/api/routing/failover', 'PUT', settings, 400);
+    await api('/api/routing/mode', 'PUT', { mode: 'automatic' }, 400);
     await api('/api/routing/default', 'PUT', { route: { type: 'upstream', upstreamId: primary.id } });
     await api('/api/routing/failover', 'PUT', { ...settings, candidates: [settings.candidates[0], settings.candidates[0]] }, 400);
-    await api('/api/routing/failover', 'PUT', { ...settings, candidates: settings.candidates.slice(1) }, 400);
+    await api('/api/routing/failover', 'PUT', { ...settings, candidates: settings.candidates.slice(0, 1) }, 400);
     await api('/api/routing/failover', 'PUT', { enabled: true, backupUpstreamId: backup.id });
     assert.deepEqual((await (await api('/api/routing')).json()).failover.config.candidates, settings.candidates.slice(0, 2), 'Old API settings should migrate to a priority pool');
     const migrated = JSON.parse(fs.readFileSync('/etc/wireguard/routing.json'));
