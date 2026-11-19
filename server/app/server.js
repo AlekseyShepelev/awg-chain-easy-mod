@@ -656,7 +656,7 @@ async function api(request, response, url) {
     await routing.returnToPreferred();
     return send(response, 200, { success: true });
   }
-  const upstreamMatch = url.pathname.match(/^\/api\/routing\/upstreams\/([0-9a-f-]+)(?:\/(enable|disable|failover-priority|configuration|statistics\/reset))?$/i);
+  const upstreamMatch = url.pathname.match(/^\/api\/routing\/upstreams\/([0-9a-f-]+)(?:\/(enable|disable|failover-priority|name|configuration|statistics\/reset))?$/i);
   if (upstreamMatch) {
     if (request.method === 'POST' && upstreamMatch[2] === 'statistics/reset') {
       const body = await readJson(request, 4096);
@@ -668,6 +668,10 @@ async function api(request, response, url) {
     if (request.method === 'GET' && upstreamMatch[2] === 'configuration') {
       const config = await routing.exportUpstreamConfig(upstreamMatch[1]);
       return send(response, 200, config, 'text/plain; charset=utf-8', { 'Content-Disposition': `attachment; filename="up-${upstreamMatch[1].slice(0, 8)}.conf"` });
+    }
+    if (request.method === 'PUT' && upstreamMatch[2] === 'name') {
+      await routing.renameUpstream(upstreamMatch[1], (await readJson(request))?.name);
+      return send(response, 200, { success: true });
     }
     if (request.method === 'PUT' && upstreamMatch[2] === 'configuration') {
       await routing.updateUpstreamConfig(upstreamMatch[1], await readJson(request));

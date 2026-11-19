@@ -5,11 +5,12 @@ const net = require('node:net');
 function invalid(message) { throw Object.assign(new Error(message), { status: 400 }); }
 function validate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('Invalid settings');
-  const { serverName, dnsUpstreams, qrFormat } = input;
+  const { serverName, panelName = "", dnsUpstreams, qrFormat } = input;
   if (typeof serverName !== 'string' || !serverName.trim() || serverName.trim().length > 64 || /[\x00-\x1f\x7f]/.test(serverName)) invalid('Server name must contain 1-64 characters without control characters');
   if (!Array.isArray(dnsUpstreams) || dnsUpstreams.length < 1 || dnsUpstreams.length > 8 || new Set(dnsUpstreams).size !== dnsUpstreams.length || dnsUpstreams.some(ip => typeof ip !== 'string' || net.isIP(ip) !== 4 || /^(0|127|22[4-9]|2[3-5]\d)\./.test(ip))) invalid('Specify 1-8 unique IPv4 DNS servers');
   if (!['conf', 'amnezia'].includes(qrFormat)) invalid('Invalid QR format');
-  return { serverName: serverName.trim(), dnsUpstreams: [...dnsUpstreams], qrFormat };
+  if (typeof panelName !== 'string' || panelName.trim().length > 64 || /[\x00-\x1f\x7f]/.test(panelName)) invalid('Invalid panel name');
+  return { panelName: panelName.trim(), serverName: serverName.trim(), dnsUpstreams: [...dnsUpstreams], qrFormat };
 }
 class GuiSettings {
   constructor(file, defaults) {
@@ -18,7 +19,7 @@ class GuiSettings {
     if (!fs.existsSync(file)) this.save(this.value);
   }
   next(patch) {
-    if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(k => !['serverName','dnsUpstreams','qrFormat'].includes(k))) invalid('Invalid settings');
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(k => !['serverName','panelName','dnsUpstreams','qrFormat'].includes(k))) invalid('Invalid settings');
     return validate({ ...this.value, ...patch });
   }
   save(next) {

@@ -293,6 +293,19 @@ class RoutingManager {
     });
   }
 
+  async renameUpstream(id, value) {
+    return this.enqueue(async () => {
+      const upstream = this.state.upstreams[id];
+      if (!upstream) throw httpError('Upstream not found', 404);
+      const name = typeof value === 'string' ? value.trim() : '';
+      if (!name || name.length > 64 || /[\x00-\x1f\x7f]/.test(name)) throw httpError('Upstream name must contain 1-64 characters');
+      if (Object.values(this.state.upstreams).some(item => item.id !== id && item.name.toLowerCase() === name.toLowerCase())) throw httpError('Upstream name already exists', 409);
+      const previous = upstream.name;
+      upstream.name = name;
+      try { await this.save(); } catch (error) { upstream.name = previous; throw error; }
+    });
+  }
+
   async updateUpstreamConfig(id, input) {
     return this.enqueue(async () => {
       const upstream = this.state.upstreams[id];

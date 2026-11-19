@@ -38,6 +38,8 @@
     "Availability checks Internet access through the tunnel. Connection indicates handshake status.": "Доступность — результат проверки выхода в интернет через туннель. Подключение — состояние обмена ключами.",
     'Primary route': 'Основной', 'Check': 'Проверка', 'Successful': 'Успешная',
     'Add': 'Добавить', 'Local UDP port': 'Локальный UDP-порт', 'Choose file': 'Выбрать файл',
+    'Add tunnel': 'Добавить туннель', 'Tunnel name': 'Имя туннеля', 'Name in client profiles': 'Имя в профилях клиентов', 'Name in panel': 'Имя в панели', 'Invalid panel name': 'Имя в панели должно содержать не более 64 символов без управляющих знаков',
+    'Direct via eth0 ({name})': 'Напрямую через eth0 ({name})', 'Replace configuration (.conf)': 'Заменить конфигурацию (.conf)',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -226,9 +228,7 @@ const elements = Object.fromEntries([
   'peer-connection-dialog', 'peer-connection-title', 'close-peer-connection', 'peer-connection-form',
   'peer-connection-enabled', 'peer-connection-fields', 'peer-connection-endpoint', 'peer-connection-keepalive', 'peer-connection-error',
   'upstream-listen-port', 'upstream-port-hint',
-  'upstream-priority-dialog', 'upstream-priority-title', 'close-upstream-priority',
-  'upstream-priority-form', 'upstream-priority-value', 'upstream-priority-error',
-  'primary-nav', 'clients-page', 'routing-page', 'settings-page', 'about-page', 'about-version', 'about-commit', 'about-build-commit', 'about-awg', 'server-settings-form', 'settings-server-name', 'server-settings-message', 'dns-settings-form', 'dns-settings-rows', 'dns-settings-message', 'dns-add', 'dns-test', 'qr-settings-form', 'settings-qr-format', 'qr-settings-message', 'new-upstream-button', 'new-policy-button',
+  'primary-nav', 'clients-page', 'routing-page', 'settings-page', 'about-page', 'about-version', 'about-commit', 'about-build-commit', 'about-awg', 'server-settings-form', 'settings-server-name', 'settings-panel-name', 'server-settings-message', 'dns-settings-form', 'dns-settings-rows', 'dns-settings-message', 'dns-add', 'dns-test', 'qr-settings-form', 'settings-qr-format', 'qr-settings-message', 'new-upstream-button', 'new-policy-button',
   'dns-status', 'dns-upstream', 'upstream-count', 'policy-count',
   'default-route-form', 'default-route', 'default-route-error',
   'failover-status', 'failover-runtime-error', 'failover-settings', 'failover-form', 'failover-fields',
@@ -245,7 +245,6 @@ let refreshTimer;
 let configViewController = null;
 let editingPolicyId = null;
 let editingPeerId = null;
-let editingPriorityUpstreamId = null;
 let publishedUpstreamPorts = [];
 let failoverFormDirty = false;
 let defaultRouteDirty = false;
@@ -379,8 +378,12 @@ function routeFromValue(value) {
   return value.startsWith('upstream:') ? { type: 'upstream', upstreamId: value.slice(9) } : { type: value };
 }
 
+function directRouteLabel() {
+  return t('Direct via eth0 ({name})', { name: lastData?.guiSettings?.panelName || 'Server A' });
+}
+
 function routeLabel(route, upstreams) {
-  if (route.type === 'direct') return t('Direct');
+  if (route.type === 'direct') return directRouteLabel();
   if (route.type === 'blocked') return t('Blocked');
   return upstreams.find((item) => item.id === route.upstreamId)?.name || t('Missing upstream');
 }
@@ -389,7 +392,7 @@ function updateRouteSelect(select, upstreams, selected, clientMode = false) {
   const previous = selected || select.value;
   select.replaceChildren();
   for (const [value, label] of (clientMode ? [['default', 'Automatic'], ['direct', 'Direct via eth0 (Server A)']] : [['direct', 'Direct via eth0 (Server A)'], ['blocked', 'Blocked']])) {
-    const option = document.createElement('option'); option.value = value; option.textContent = t(label); select.append(option);
+    const option = document.createElement('option'); option.value = value; option.textContent = label === 'Direct via eth0 (Server A)' ? directRouteLabel() : t(label); select.append(option);
   }
   for (const upstream of upstreams) {
     const option = document.createElement('option');
@@ -408,7 +411,7 @@ function clientModeBody(value) {
 }
 function clientModeLabel(value, upstreams = lastData?.routing.upstreams || []) {
   if (value === 'default') return t('Automatic');
-  if (value === 'direct') return t('Direct via eth0 (Server A)');
+  if (value === 'direct') return directRouteLabel();
   return t('Upstream: {name}{status}', { name: upstreams.find((u) => `upstream:${u.id}` === value)?.name || t('Missing upstream'), status: '' });
 }
 function updateClientModeHint(select, hint) {
@@ -450,13 +453,21 @@ function syncUpstreamEditMode() {
   document.querySelector('#upstream-edit-config').hidden = mode !== 'config';
   document.querySelector('#upstream-edit-port').hidden = mode !== 'port';
   upstreamEditForm.elements.listenPort.disabled = mode !== 'port';
+  document.querySelector('#upstream-edit-name').hidden = mode !== 'name';
+  document.querySelector('#upstream-edit-priority').hidden = mode !== 'priority';
+  document.querySelector('#upstream-edit-restart').hidden = mode === 'name' || mode === 'priority';
+  upstreamEditForm.elements.priority.disabled = mode !== 'priority';
+  upstreamEditForm.elements.tunnelName.required = mode === 'name';
   upstreamEditForm.elements.endpoint.required = endpoint;
   upstreamEditForm.elements.config.required = mode === 'config';
 }
 
-function openUpstreamEdit(upstream) {
+function openUpstreamEdit(upstream, mode = 'endpoint') {
   upstreamEditId = upstream.id;
   upstreamEditForm.reset();
+  upstreamEditForm.elements.mode.value = mode;
+  upstreamEditForm.elements.tunnelName.value = upstream.name;
+  upstreamEditForm.elements.priority.value = upstream.failoverPriority ?? '';
   document.querySelector('#upstream-edit-filename').textContent = '';
   upstreamEditForm.elements.listenPort.value = upstream.configuredListenPort || '';
   document.querySelector('#upstream-edit-port-range').textContent = publishedPortsHint();
@@ -498,14 +509,19 @@ upstreamEditForm.addEventListener('submit', async (event) => {
   if (submit.disabled || !upstreamEditId) return;
   const id = upstreamEditId;
   const mode = upstreamEditForm.elements.mode.value;
-  const payload = mode === 'endpoint'
-    ? { mode, endpoint: upstreamEditForm.elements.endpoint.value }
-    : mode === 'port' ? { listenPort: Number(upstreamEditForm.elements.listenPort.value || 0) }
-      : { mode, config: upstreamEditForm.elements.config.value };
+  const fields = upstreamEditForm.elements;
+  const priority = fields.priority.value;
+  const [suffix, payload] = {
+    endpoint: ['/configuration', { mode, endpoint: fields.endpoint.value }],
+    config: ['/configuration', { mode, config: fields.config.value }],
+    port: ['', { listenPort: Number(fields.listenPort.value || 0) }],
+    name: ['/name', { name: fields.tunnelName.value }],
+    priority: ['/failover-priority', { failoverPriority: priority === '' ? null : Number(priority) }],
+  }[mode];
   text(upstreamEditError, '');
   submit.disabled = true;
   try {
-    await request(`/api/routing/upstreams/${id}${mode === 'port' ? '' : '/configuration'}`, { method: 'PUT', body: JSON.stringify(payload) });
+    await request(`/api/routing/upstreams/${id}${suffix}`, { method: 'PUT', body: JSON.stringify(payload) });
     if (upstreamEditId === id) upstreamEditDialog.close();
     await refresh();
   } catch (error) {
@@ -515,15 +531,6 @@ upstreamEditForm.addEventListener('submit', async (event) => {
   }
 });
 
-
-function openUpstreamPriority(upstream) {
-  editingPriorityUpstreamId = upstream.id;
-  text(elements['upstream-priority-title'], 'Failover priority: {name}', { name: upstream.name });
-  elements['upstream-priority-value'].value = upstream.failoverPriority ?? '';
-  text(elements['upstream-priority-error'], '');
-  elements['upstream-priority-dialog'].showModal();
-  elements['upstream-priority-value'].focus();
-}
 
 // Keep only the last displayed probe timestamps when checks are switched off.
 const upstreamCheckTimes = new Map();
@@ -620,7 +627,7 @@ function renderUpstreams(routing) {
     interfaceInfo.append(portValue);
     details.append(summary, interfaceInfo);
     endpointInfo.append(heading, endpointValue, details);
-    const priority = button(upstream.failoverPriority == null ? 'Excluded' : String(upstream.failoverPriority), 'secondary', () => openUpstreamPriority(upstream));
+    const priority = button(upstream.failoverPriority == null ? 'Excluded' : String(upstream.failoverPriority), 'secondary', () => openUpstreamEdit(upstream, 'priority'));
     priority.setAttribute('aria-label', t('Edit failover priority for {name}', { name: upstream.name }));
     const row = document.createElement('tr');
     row.classList.toggle('row-disabled', !upstream.enabled);
@@ -1253,21 +1260,6 @@ elements['peer-connection-form'].addEventListener('submit', async (event) => {
   } catch (error) { text(elements['peer-connection-error'], error.message); }
 });
 
-elements['close-upstream-priority'].addEventListener('click', () => elements['upstream-priority-dialog'].close());
-elements['upstream-priority-dialog'].addEventListener('close', () => { editingPriorityUpstreamId = null; });
-elements['upstream-priority-form'].addEventListener('submit', async (event) => {
-  event.preventDefault();
-  text(elements['upstream-priority-error'], '');
-  const value = elements['upstream-priority-value'].value;
-  try {
-    await request(`/api/routing/upstreams/${editingPriorityUpstreamId}/failover-priority`, {
-      method: 'PUT', body: JSON.stringify({ failoverPriority: value === '' ? null : Number(value) }),
-    });
-    elements['upstream-priority-dialog'].close();
-    await refresh();
-  } catch (error) { text(elements['upstream-priority-error'], error.message); }
-});
-
 elements['new-policy-button'].addEventListener('click', () => openPolicyEditor());
 elements['cancel-policy-button'].addEventListener('click', () => {
   elements['policy-create-panel'].close();
@@ -1384,7 +1376,10 @@ function renderDnsDraft() {
 }
 function renderGuiSettings(value) {
   if (!value) return;
-  if (!settingsDirty.server) elements['settings-server-name'].value = value.serverName;
+  if (!settingsDirty.server) {
+    elements['settings-server-name'].value = value.serverName;
+    elements['settings-panel-name'].value = value.panelName || '';
+  }
   if (!settingsDirty.qr) elements['settings-qr-format'].value = value.qrFormat;
   if (!settingsDirty.dns && document.activeElement?.closest('#dns-settings-form') === null) {
     dnsDraft = [...value.dnsUpstreams]; renderDnsDraft();
@@ -1397,7 +1392,7 @@ for (const [form, key] of [['server-settings-form','server'], ['dns-settings-for
     event.preventDefault();
     if (key === 'dns' && !validateDnsDraft()) return;
     const message = elements[`${key === 'server' ? 'server' : key}-settings-message`];
-    const body = key === 'server' ? { serverName: elements['settings-server-name'].value } : key === 'dns' ? { dnsUpstreams: dnsDraft } : { qrFormat: elements['settings-qr-format'].value };
+    const body = key === 'server' ? { serverName: elements['settings-server-name'].value, panelName: elements['settings-panel-name'].value } : key === 'dns' ? { dnsUpstreams: dnsDraft } : { qrFormat: elements['settings-qr-format'].value };
     const submit = elements[form].querySelector('[type="submit"]'); submit.disabled = true;
     try {
       await request('/api/settings', { method: 'PUT', body: JSON.stringify(body) });

@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.2.3">
-  <script defer src="/app.js?v=2.2.3"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.2.4">
+  <script defer src="/app.js?v=2.2.4"></script>
 </head>
 <body>
   <header class="global-header">
@@ -114,7 +114,7 @@
         </section>
 
         <section class="resource-section spaced" aria-labelledby="upstreams-title">
-          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
+          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add tunnel</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Server</th><th>Priority</th><th>Availability</th><th>Connection</th><th>Handshake</th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>
@@ -150,7 +150,8 @@
         <h2>Server name</h2>
         <p>Used in exported configurations, vpn:// keys and QR codes.</p>
         <form id="server-settings-form" class="stack-form">
-          <div class="field"><label for="settings-server-name">Server name</label><input id="settings-server-name" maxlength="64" required></div>
+          <div class="field"><label for="settings-server-name">Name in client profiles</label><input id="settings-server-name" maxlength="64" required></div>
+          <div class="field"><label for="settings-panel-name">Name in panel</label><input id="settings-panel-name" maxlength="64" placeholder="Server A"></div>
           <p id="server-settings-message" role="status"></p>
           <div><button class="button primary" type="submit">Save</button></div>
         </form>
@@ -279,22 +280,18 @@
     </form>
   </dialog>
 
-  <dialog id="upstream-priority-dialog" class="dialog" aria-labelledby="upstream-priority-title">
-    <div class="dialog-heading"><h2 id="upstream-priority-title">Upstream failover priority</h2><button id="close-upstream-priority" class="button secondary compact" type="button">Close</button></div>
-    <form id="upstream-priority-form" class="stack-form">
-      <div class="field"><label for="upstream-priority-value">Failover priority</label><input id="upstream-priority-value" type="number" min="1" max="10000" placeholder="Excluded"><p class="secondary-value">Lower numbers are preferred. Equal numbers share a priority group. Leave blank to exclude this upstream.</p></div>
-      <p>Changing priority keeps the tunnel running. Downloaded configs include the current priority as a comment.</p>
-      <p id="upstream-priority-error" class="form-error" role="alert"></p>
-      <div><button class="button primary" type="submit">Save priority</button></div>
-    </form>
-  </dialog>
-
   <dialog id="upstream-edit-dialog" class="dialog" aria-labelledby="upstream-edit-title">
     <div class="dialog-heading"><h2 id="upstream-edit-title">Edit tunnel</h2></div>
     <form id="upstream-edit-form" class="stack-form">
-      <label><span>Edit mode</span><select name="mode"><option value="endpoint">Connection address</option><option value="config">Replace configuration</option><option value="port">Local UDP port</option></select></label>
+      <label><span>Edit mode</span><select name="mode"><option value="endpoint">Connection address</option><option value="name">Tunnel name</option><option value="config">Replace configuration (.conf)</option><option value="port">Local UDP port</option><option value="priority">Failover priority</option></select></label>
       <label id="upstream-edit-endpoint"><span>Remote address and UDP port</span><input name="endpoint" placeholder="vpn.example.com:51820" spellcheck="false"></label>
       <div class="upstream-edit-body">
+        <label id="upstream-edit-name" hidden><span>Tunnel name</span><input name="tunnelName" maxlength="64"></label>
+        <div id="upstream-edit-priority" class="field" hidden>
+          <label for="upstream-edit-priority-value">Failover priority</label>
+          <input id="upstream-edit-priority-value" name="priority" type="number" min="1" max="10000" placeholder="Excluded">
+          <p class="secondary-value">Lower numbers are preferred. Equal numbers share a priority group. Leave blank to exclude this upstream.</p>
+        </div>
       <div id="upstream-edit-port" class="field" hidden>
         <label for="upstream-edit-listen-port">Fixed local UDP port</label>
         <input id="upstream-edit-listen-port" name="listenPort" type="number" min="1" max="65535" placeholder="Automatic">
@@ -307,7 +304,7 @@
         <label><span>Configuration text</span><textarea name="config" class="code-input" rows="8" spellcheck="false" maxlength="131072"></textarea></label>
         <p>The file can change the protocol and local port. Existing routing assignments and failover priority are kept.</p>
       </div>
-      <p>Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.</p>
+      <p id="upstream-edit-restart">Saving restarts this tunnel if enabled. Check for a fresh handshake afterwards.</p>
       <p class="form-error" role="alert"></p>
       </div>
       <div class="confirmation-actions"><button id="upstream-edit-cancel" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Save</button></div>
