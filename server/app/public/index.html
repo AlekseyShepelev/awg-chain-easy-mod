@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.4.0">
-  <script defer src="/app.js?v=2.4.0"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.4.1">
+  <script defer src="/app.js?v=2.4.1"></script>
 </head>
 <body>
   <header class="global-header">
@@ -104,14 +104,17 @@
 
         <section class="create-panel" aria-labelledby="default-route-title">
           <div class="section-heading">
-            <div><h2 id="default-route-title">Default route</h2><p>For automatic clients when no routing rule matches.</p></div>
+            <div><h2 id="default-route-title">Operating mode</h2><p>For automatic clients when no routing rule matches.</p></div>
           </div>
           <form id="default-route-form" class="stack-form">
 <div class="segmented-switch" role="group" aria-label="Route mode"><button type="button" id="mode-fixed" class="button secondary">Fixed route</button><button type="button" id="mode-automatic" class="button secondary">Automatic failover</button></div>
 <div id="route-automatic" hidden><p id="route-preferred"></p><p id="route-current"></p><p id="route-return"></p><p id="route-duplicate" class="form-error" hidden>Some tunnels have the same saved priority. Assign different priorities to remove the tie.</p><p>Chooses an available tunnel with the lowest priority number.</p><button id="open-failover" type="button" class="button secondary">Failover parameters</button></div>
-<p id="route-draft" class="secondary-value" hidden>Changes are not applied.</p>
-            <div id="route-fixed" class="field"><label for="default-route">Destination</label><select id="default-route" required></select><p id="route-hint"></p></div>
-            <button class="button primary" type="submit">Save default</button>
+<div id="route-fixed">
+  <h3>Default route</h3>
+  <div class="route-direction"><div class="field"><label for="default-route">Destination</label><select id="default-route" required></select><p id="route-draft" hidden>Changes are not applied.</p></div>
+  <button id="save-fixed-route" class="button primary" type="submit">Save default</button></div>
+  <p id="route-hint"></p>
+</div>
           </form>
           <p id="default-route-error" class="form-error" role="alert"></p>
         </section>

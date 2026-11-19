@@ -68,6 +68,8 @@
     "Fewer than two eligible tunnels will remain. The route will become fixed on the remaining tunnel, or blocked if none remains.": "Останется меньше двух подходящих туннелей. Маршрут закрепится за оставшимся туннелем, а если его нет — будет заблокирован.",
     'Priority is already used by {0}': 'Этот приоритет уже используется туннелем {0}',
     'Some tunnels have the same saved priority. Assign different priorities to remove the tie.': 'У нескольких туннелей одинаковый сохранённый приоритет. Назначьте разные значения.',
+    'Automatic return: {name}': 'Автовозврат: {name}',
+    'Operating mode': 'Режим работы',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -1432,27 +1434,37 @@ elements['policy-form'].addEventListener('submit', async (event) => {
 
 const routeControl = id => document.getElementById(id);
 let routeMode = 'fixed';
+let routeSaving = false;
+function routeFact(id, label, value, tone = '') {
+  const strong = document.createElement('strong');
+  strong.className = tone;
+  strong.textContent = value;
+  routeControl(id).replaceChildren(t(label, { name: '' }), strong);
+}
 function renderRouteMode(routing) {
   const saved = routing.failover.config.enabled ? 'automatic' : 'fixed';
-  if (!defaultRouteDirty) routeMode = saved;
+  routeMode = saved;
   for (const mode of ['fixed', 'automatic']) {
     const button = routeControl('mode-' + mode);
     button.classList.toggle('primary', mode === routeMode);
     button.classList.toggle('secondary', mode !== routeMode);
     button.setAttribute('aria-pressed', String(mode === routeMode));
+    button.disabled = routeSaving;
   }
   routeControl('route-fixed').hidden = routeMode !== 'fixed';
   routeControl('route-automatic').hidden = routeMode !== 'automatic';
-  elements['default-route'].disabled = routeMode !== 'fixed';
+  elements['default-route'].disabled = routeMode !== 'fixed' || routeSaving;
+  routeControl('save-fixed-route').disabled = routeSaving || !defaultRouteDirty;
   routeControl('route-draft').hidden = !defaultRouteDirty;
   const eligible = routing.upstreams.filter(u => u.enabled && u.failoverPriority != null).sort((a,b) => a.failoverPriority-b.failoverPriority);
   const preferred = eligible[0];
   const current = routing.effectiveDefaultRoute;
-  text(routeControl('route-preferred'), 'Preferred: {name}', { name: preferred?.name || '—' });
-  text(routeControl('route-current'), saved === 'automatic' ? 'Currently used: {name}' : 'Saved route: {name}', { name: routeLabel(current || {type:'blocked'}, routing.upstreams) });
+  routeFact('route-preferred', 'Preferred: {name}', preferred?.name || '—');
+  routeFact('route-current', 'Currently used: {name}', routeLabel(current || {type:'blocked'}, routing.upstreams), current?.type === 'blocked' ? 'upstream-failover-off' : 'upstream-failover-on');
   const duplicates = eligible.some((u, i) => i > 0 && u.failoverPriority === eligible[i - 1].failoverPriority);
   routeControl('route-duplicate').hidden = !duplicates;
-  text(routeControl('route-return'), routing.failover.config.autoFailback ? 'Automatic return: on' : 'Automatic return: off');
+  const autoReturn = routing.failover.config.autoFailback;
+  routeFact('route-return', 'Automatic return: {name}', t(autoReturn ? 'enabled' : 'disabled'), autoReturn ? 'upstream-failover-on' : 'upstream-failover-off');
   routeControl('fixed-priority-note').hidden = saved !== 'fixed';
   routeControl('upstreams-title').textContent = t(saved === 'fixed' ? 'Upstream tunnels' : 'Upstream tunnels and failover');
   routeControl('upstream-rows').closest('table').classList.toggle('fixed-route-table', saved === 'fixed');
@@ -1461,26 +1473,35 @@ function renderRouteMode(routing) {
     : direction.type === 'blocked' ? 'Unmatched traffic is blocked.'
       : 'Traffic uses only {name}. If unavailable, traffic is blocked.', {name: routeLabel(direction, routing.upstreams)});
 }
-for (const mode of ['fixed','automatic']) routeControl('mode-'+mode).addEventListener('click', () => {
-  if (!lastData) return;
-  routeMode = mode;
-  defaultRouteDirty = true;
+async function saveRouteMode(mode, route) {
+  if (routeSaving || !lastData) return;
+  routeSaving = true;
   renderRouteMode(lastData.routing);
-});
-elements['default-route'].addEventListener('change', () => { defaultRouteDirty = true; renderRouteMode(lastData.routing); });
-routeControl('open-failover').addEventListener('click', () => elements['failover-settings'].showModal());
-routeControl('close-failover').addEventListener('click', () => elements['failover-settings'].close());
-elements['default-route-form'].addEventListener('submit', async (event) => {
-  event.preventDefault();
   text(elements['default-route-error'], '');
   try {
     await request('/api/routing/mode', {
-      method: 'PUT',
-      body: JSON.stringify({ mode: routeMode, ...(routeMode === 'fixed' ? { route: routeFromValue(elements['default-route'].value) } : {}) }),
+      method: 'PUT', body: JSON.stringify({ mode, route }),
     });
     defaultRouteDirty = false;
     await refresh();
   } catch (error) { text(elements['default-route-error'], error.message); }
+  finally {
+    routeSaving = false;
+    renderRouteMode(lastData.routing);
+  }
+}
+for (const mode of ['fixed','automatic']) routeControl('mode-'+mode).addEventListener('click', () => {
+  if (lastData && mode !== routeMode) saveRouteMode(mode, lastData.routing.defaultRoute);
+});
+elements['default-route'].addEventListener('change', () => {
+  defaultRouteDirty = elements['default-route'].value !== routeValue(lastData.routing.defaultRoute);
+  renderRouteMode(lastData.routing);
+});
+routeControl('open-failover').addEventListener('click', () => elements['failover-settings'].showModal());
+routeControl('close-failover').addEventListener('click', () => elements['failover-settings'].close());
+elements['default-route-form'].addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (routeMode === 'fixed' && defaultRouteDirty) saveRouteMode('fixed', routeFromValue(elements['default-route'].value));
 });
 
 const settingsDirty = { server: false, dns: false, qr: false };

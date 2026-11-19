@@ -403,3 +403,11 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 
 .fixed-route-table .upstream-priority-column { display: none; }
 #default-route-form > .segmented-switch { flex-wrap: wrap; align-self: flex-start; }
+
+#route-fixed, #route-automatic { height: 240px; overflow: auto; }
+.route-direction { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-2); }
+.route-direction > button { margin-top: 18px; }
+#route-draft { color: var(--color-warning, #f1ad55); }
+#route-automatic > p[id] { font-size: 1.1em; }
+#route-preferred strong { color: var(--color-accent); }
+dialog#failover-settings { margin: auto; }
