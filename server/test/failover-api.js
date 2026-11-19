@@ -54,7 +54,7 @@ module.exports = async function exerciseFailover(api, upstream, primaryId) {
     }
     const { candidates, ...monitorSettings } = settings;
     await api('/api/routing/failover', 'PUT', monitorSettings);
-    await api(`/api/routing/upstreams/${backup.id}`, 'DELETE', undefined, 409);
+    await api(`/api/routing/upstreams/${primary.id}`, 'DELETE', undefined, 409);
     await api('/api/routing/default', 'PUT', { route: { type: 'direct' } }, 400);
     const set = `p_${policy.id.replace(/-/g, '').slice(0, 12)}`;
     execFileSync('nft', ['add', 'element', 'inet', 'awg_chain_easy', set, '{', '198.51.100.231', 'timeout', '120s', '}']);
