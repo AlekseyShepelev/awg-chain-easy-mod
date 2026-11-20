@@ -51,20 +51,21 @@ func probe(ctx context.Context, client *http.Client, target string) bool {
 }
 
 func check(ctx context.Context, client *http.Client, targets []string) bool {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	results := make(chan bool, len(targets))
-	for _, target := range targets {
-		go func(target string) { results <- probe(ctx, client, target) }(target)
-	}
-	for range targets {
-		select {
-		case success := <-results:
-			if success {
-				return true
-			}
-		case <-ctx.Done():
+	deadline, bounded := ctx.Deadline()
+	for i, target := range targets {
+		if ctx.Err() != nil {
 			return false
+		}
+		attempt := ctx
+		cancel := func() {}
+		if remaining := len(targets) - i; bounded && remaining > 1 {
+			// Give each fallback a share of the deadline if an earlier target hangs.
+			attempt, cancel = context.WithTimeout(ctx, time.Until(deadline)/time.Duration(remaining))
+		}
+		success := probe(attempt, client, target)
+		cancel()
+		if success {
+			return true
 		}
 	}
 	return false
