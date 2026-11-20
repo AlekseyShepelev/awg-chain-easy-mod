@@ -547,7 +547,8 @@ function syncUpstreamEditMode() {
   upstreamEditForm.elements.config.required = mode === 'config';
 }
 
-function openUpstreamEdit(upstream, mode = 'endpoint') {
+function openUpstreamEdit(upstream, shortcutMode) {
+  const mode = shortcutMode || 'endpoint';
   upstreamEditId = upstream.id;
   upstreamEditForm.reset();
   upstreamEditForm.elements.mode.querySelector('[value=priority]').hidden = !lastData?.routing.failover.config.enabled;
@@ -561,6 +562,8 @@ function openUpstreamEdit(upstream, mode = 'endpoint') {
   text(upstreamEditError, '');
   syncUpstreamEditMode();
   upstreamEditDialog.showModal();
+  const field = { name: 'tunnelName', endpoint: 'endpoint', priority: 'priority' }[shortcutMode];
+  if (field) upstreamEditForm.elements[field].focus();
 }
 
 upstreamEditForm.elements.mode.addEventListener('change', syncUpstreamEditMode);
@@ -927,6 +930,8 @@ function openPeerConnection(client) {
 }
 
 let renamingClientId = null;
+let originalClientEdit = null;
+
 function openRenameClient(client) {
   renamingClientId = client.id;
   elements['rename-name'].value = client.name;
@@ -936,6 +941,11 @@ function openRenameClient(client) {
   updateRouteSelect(elements['rename-route'], lastData?.routing.upstreams || [], clientModeValue(client), true);
   updateClientModeHint(elements['rename-route'], elements['rename-route-hint']);
   text(elements['rename-error'], '');
+  originalClientEdit = {
+    name: client.name,
+    addressOctet: Number(client.address.slice(divider)),
+    route: clientModeValue(client),
+  };
   elements['rename-dialog'].showModal();
   elements['rename-name'].focus();
   elements['rename-name'].select();
@@ -1025,7 +1035,7 @@ async function openClientConfig(client, vpn = false) {
 }
 
 const clientSortButtons = [...document.querySelectorAll('[data-client-sort]')];
-let clientSort = { key: null, direction: 1 };
+let clientSort = { key: 'name', direction: 1 };
 for (const control of clientSortButtons) {
   control.addEventListener('click', () => {
     const key = control.dataset.clientSort;
@@ -1422,10 +1432,21 @@ elements['rename-dialog'].addEventListener('close', () => { renamingClientId = n
 elements['rename-form'].addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!renamingClientId || elements['rename-save'].disabled) return;
+  const name = elements['rename-name'].value.trim();
+  const addressOctet = document.querySelector('#rename-address-octet').valueAsNumber;
+  const route = elements['rename-route'].value;
+  const payload = {};
+  if (name !== originalClientEdit.name) payload.name = name;
+  if (addressOctet !== originalClientEdit.addressOctet) payload.addressOctet = addressOctet;
+  if (route !== originalClientEdit.route) Object.assign(payload, clientModeBody(route));
+  if (!Object.keys(payload).length) {
+    elements['rename-dialog'].close();
+    return;
+  }
   elements['rename-save'].disabled = true;
   text(elements['rename-error'], '');
   try {
-    await request(`/api/wireguard/client/${renamingClientId}`, { method: 'PUT', body: JSON.stringify({ name: elements['rename-name'].value, addressOctet: document.querySelector('#rename-address-octet').valueAsNumber, ...clientModeBody(elements['rename-route'].value) }) });
+    await request(`/api/wireguard/client/${renamingClientId}`, { method: 'PUT', body: JSON.stringify(payload) });
     elements['rename-dialog'].close();
     await refresh();
   } catch (error) { text(elements['rename-error'], error.message); }
