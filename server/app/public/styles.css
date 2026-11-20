@@ -419,3 +419,18 @@ dialog#failover-settings { margin: auto; }
   color: color-mix(in srgb, var(--color-accent) 28%, var(--color-text));
   border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-text-muted));
 }
+
+/* Keep the action row available when a long dialog needs to scroll. */
+.footer-dialog { max-height: calc(100dvh - 32px); overflow: auto; }
+.footer-dialog .modal-footer {
+  position: sticky;
+  bottom: calc(-1 * var(--space-4));
+  z-index: 1;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  margin-top: var(--space-3);
+  padding-block: var(--space-2);
+  background: var(--color-panel);
+}
+.footer-dialog.export-dialog .modal-footer { margin-top: auto; }

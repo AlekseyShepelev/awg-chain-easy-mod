@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.4.4">
-  <script defer src="/app.js?v=2.4.4"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.4.5">
+  <script defer src="/app.js?v=2.4.5"></script>
 </head>
 <body>
   <header class="global-header">
@@ -205,10 +205,10 @@
     </section>
   </main>
 
-        <dialog id="upstream-create-panel" class="dialog routing-editor-dialog" aria-labelledby="upstream-create-title">
+        <dialog id="upstream-create-panel" class="dialog footer-dialog routing-editor-dialog" aria-labelledby="upstream-create-title">
           <div class="section-heading">
             <div><h2 id="upstream-create-title">Import upstream AWG config</h2><p>AWG3 and legacy AWG profiles are supported; executable directives are rejected.</p></div>
-            <button id="cancel-upstream-button" class="button secondary compact" type="button">Cancel</button>
+
           </div>
           <form id="upstream-form" class="stack-form">
             <div class="field"><label for="upstream-name">Name</label><input id="upstream-name" maxlength="64"></div>
@@ -217,15 +217,15 @@
             <div class="field"><label for="upstream-listen-port">Fixed local UDP port (optional)</label><input id="upstream-listen-port" type="number" min="1" max="65535" placeholder="Keep imported port"></div><p id="upstream-port-hint" class="secondary-value">Use a published port when the upstream initiates connections.</p>
             <div class="import-failover-row"><label class="toggle-field"><input id="import-failover" type="checkbox">Include in failover</label>
             <div class="field" id="import-priority-field"><label for="import-priority">Priority</label><input id="import-priority" type="number" min="1" max="10000" disabled><p class="secondary-value">Lower numbers are preferred.</p></div></div>
-            <div><button class="button primary" type="submit">Import and start</button></div>
-          </form>
+
+          <div class="confirmation-actions modal-footer"><button id="cancel-upstream-button" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Import and start</button></div></form>
           <p id="upstream-error" class="form-error" role="alert"></p>
         </dialog>
 
-        <dialog id="policy-create-panel" class="dialog routing-editor-dialog" aria-labelledby="policy-create-title">
+        <dialog id="policy-create-panel" class="dialog footer-dialog routing-editor-dialog" aria-labelledby="policy-create-title">
           <div class="section-heading">
             <div><h2 id="policy-create-title">New destination policy</h2><p>Lower priority numbers are evaluated first.</p></div>
-            <button id="cancel-policy-button" class="button secondary compact" type="button">Cancel</button>
+
           </div>
           <form id="policy-form" class="form-grid">
             <div class="field"><label for="policy-name">Name</label><input id="policy-name" maxlength="64" required></div>
@@ -233,27 +233,27 @@
             <div class="field"><label for="policy-route">Destination</label><select id="policy-route" required></select></div>
             <div class="field wide"><label for="policy-domains">Domains</label><textarea id="policy-domains" rows="4" placeholder="example.com&#10;*.example.net" spellcheck="false"></textarea></div>
             <div class="field wide"><label for="policy-networks">IPv4 networks</label><textarea id="policy-networks" rows="4" placeholder="203.0.113.0/24&#10;198.51.100.20/32" spellcheck="false"></textarea></div>
-            <div><button id="policy-submit-button" class="button primary" type="submit">Create policy</button></div>
-          </form>
+
+          <div class="confirmation-actions modal-footer"><button id="cancel-policy-button" class="button secondary" type="button">Cancel</button><button id="policy-submit-button" class="button primary" type="submit">Create policy</button></div></form>
           <p id="policy-error" class="form-error" role="alert"></p>
         </dialog>
 
-      <dialog id="create-panel" class="dialog create-client-dialog" aria-labelledby="create-title">
+      <dialog id="create-panel" class="dialog footer-dialog create-client-dialog" aria-labelledby="create-title">
         <div class="section-heading">
           <div><h2 id="create-title">New client</h2><p>The next free address is assigned automatically.</p></div>
-          <button id="cancel-create-button" class="button secondary compact" type="button">Cancel</button>
+
         </div>
         <form id="create-form" class="inline-form">
           <div class="field"><label for="client-name">Name</label><input id="client-name" name="name" maxlength="64" autocomplete="off" required></div>
           <div class="field"><label for="client-protocol">Protocol</label><select id="client-protocol" name="protocol"><option value="AWG3">AWG3</option><option value="AWG2">AWG2 (legacy/mobile)</option><option value="WG">WireGuard (native)</option></select></div>
           <div class="field"><label for="client-route">Routing mode</label><select id="client-route" aria-describedby="client-route-hint"></select><p id="client-route-hint" class="secondary-value"></p></div>
-          <button class="button primary" type="submit">Create client</button>
-        </form>
+
+        <div class="confirmation-actions modal-footer"><button id="cancel-create-button" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Create client</button></div></form>
         <p id="create-error" class="form-error" role="alert"></p>
       </dialog>
 
-  <dialog id="peer-connection-dialog" class="dialog" aria-labelledby="peer-connection-title">
-    <div class="dialog-heading"><h2 id="peer-connection-title">Peer connection</h2><button id="close-peer-connection" class="button secondary compact" type="button">Close</button></div>
+  <dialog id="peer-connection-dialog" class="dialog footer-dialog" aria-labelledby="peer-connection-title">
+    <div class="dialog-heading"><h2 id="peer-connection-title">Peer connection</h2></div>
     <p>Initiate the tunnel from this server when the remote peer cannot reach it directly.</p>
     <form id="peer-connection-form" class="stack-form spaced">
       <label class="toggle-field"><input id="peer-connection-enabled" type="checkbox">Initiate connections to this peer</label>
@@ -262,8 +262,8 @@
         <div class="field"><label for="peer-connection-keepalive">Keepalive (seconds)</label><input id="peer-connection-keepalive" type="number" min="1" max="65535" value="25"></div>
       </div>
       <p id="peer-connection-error" class="form-error" role="alert"></p>
-      <div><button class="button primary" type="submit">Save connection</button></div>
-    </form>
+
+    <div class="confirmation-actions modal-footer"><button id="close-peer-connection" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Save connection</button></div></form>
   </dialog>
 
   <dialog id="upstream-edit-dialog" class="dialog" aria-labelledby="upstream-edit-title">
@@ -297,20 +297,20 @@
     </form>
   </dialog>
 
-  <dialog id="rename-dialog" class="dialog" aria-labelledby="rename-title">
-    <div class="dialog-heading"><h2 id="rename-title">Edit client</h2><button id="close-rename" class="button secondary compact" type="button">Close</button></div>
+  <dialog id="rename-dialog" class="dialog footer-dialog" aria-labelledby="rename-title">
+    <div class="dialog-heading"><h2 id="rename-title">Edit client</h2></div>
     <form id="rename-form" class="stack-form">
       <label><span>Name</span><input id="rename-name" type="text" required maxlength="64" autocomplete="off"></label>
       <label><span>Routing mode</span><select id="rename-route" aria-describedby="rename-route-hint"></select></label>
       <p id="rename-route-hint" class="secondary-value"></p>
       <p class="secondary-value">Changing the routing mode may interrupt active connections. No profile reimport is needed.</p>
       <p id="rename-error" class="form-error" role="alert"></p>
-      <div><button id="rename-save" class="button primary" type="submit">Save changes</button></div>
-    </form>
+
+    <div class="confirmation-actions modal-footer"><button id="close-rename" class="button secondary" type="button">Cancel</button><button id="rename-save" class="button primary" type="submit">Save changes</button></div></form>
   </dialog>
 
-  <dialog id="config-dialog" class="dialog" aria-labelledby="config-title">
-    <div class="dialog-heading"><h2 id="config-title">Client config</h2><button id="close-config-button" class="button secondary compact" type="button">Close</button></div>
+  <dialog id="config-dialog" class="dialog footer-dialog" aria-labelledby="config-title">
+    <div class="dialog-heading"><h2 id="config-title">Client config</h2></div>
     <select id="export-mode" aria-label="Export" hidden>
       <option value="qr">QR code</option>
       <option value="vpn">Key (vpn://)</option>
@@ -321,7 +321,7 @@
     <textarea id="config-text" class="code-input config-text" rows="18" aria-label="Client configuration" readonly spellcheck="false" wrap="off" hidden></textarea>
     <pre id="config-vpn-text" class="code-input vpn-preview" aria-label="VPN connection string" tabindex="0" hidden></pre>
     <p id="config-error" class="form-error" role="alert"></p>
-    <div class="config-actions"><a id="config-download" class="button primary" hidden>Download</a><button id="config-copy" class="button secondary" type="button" hidden>Copy</button></div>
+    <div class="config-actions confirmation-actions modal-footer"><button id="close-config-button" class="button secondary" type="button">Close</button><a id="config-download" class="button primary" hidden>Download</a><button id="config-copy" class="button secondary" type="button" hidden>Copy</button></div>
   </dialog>
 
   <dialog id="confirm-action-dialog" class="dialog" aria-labelledby="confirm-action-title" aria-describedby="confirm-action-message">
@@ -334,8 +334,8 @@
     </div>
   </dialog>
 
-  <dialog id="qr-dialog" class="dialog">
-    <div class="dialog-heading"><div><h2 id="qr-title">Client QR code</h2><p>Scan with a client compatible with the selected protocol.</p></div><button id="close-qr-button" class="button secondary compact" type="button">Close</button></div>
+  <dialog id="qr-dialog" class="dialog footer-dialog">
+    <div class="dialog-heading"><div><h2 id="qr-title">Client QR code</h2><p>Scan with a client compatible with the selected protocol.</p></div></div>
     <div id="qr-content">
     <section id="qr-conf-panel">
       <div class="qr-surface"><img id="qr-image" alt="Client configuration QR code"></div>
@@ -347,8 +347,8 @@
     </section>
 
     </div>
-  </dialog>
-<dialog id="failover-settings" class="dialog routing-editor-dialog"><div class="dialog-heading"><h2>Failover parameters</h2><button id="close-failover" class="button secondary" type="button">Close</button></div><form id="failover-form" class="stack-form failover-body">
+  <div class="confirmation-actions modal-footer"><button id="close-qr-button" class="button secondary" type="button">Close</button></div></dialog>
+<dialog id="failover-settings" class="dialog footer-dialog routing-editor-dialog"><div class="dialog-heading"><h2>Failover parameters</h2></div><form id="failover-form" class="stack-form failover-body">
 
             <fieldset id="failover-fields" class="failover-fields">
             <p>Chooses an available tunnel with the lowest priority number.</p>
@@ -364,7 +364,7 @@
             <p>If no candidate is usable, new default-route traffic is blocked. With automatic return off, a working upstream stays selected until it fails or you choose “Use higher priority”. Existing connections may need to reconnect after a switch.</p>
             </fieldset>
             <p id="failover-error" class="form-error" role="alert"></p>
-            <div><button class="button primary" type="submit">Save</button></div>
-          </form></dialog>
+
+          <div class="confirmation-actions modal-footer"><button id="close-failover" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Save</button></div></form></dialog>
 </body>
 </html>
