@@ -775,6 +775,18 @@ async function api(request, response, url) {
       const current = clientById(match[1]);
       if (Object.values(state.clients).some((item) => item.id !== current.id && item.name.toLowerCase() === name.trim().toLowerCase())) throw Object.assign(new Error('Client name already exists'), { status: 409 });
       if (Object.hasOwn(body, 'protocol') && body.protocol !== (current.protocol || 'AWG3')) throw Object.assign(new Error('Client protocol cannot be changed'), { status: 400 });
+      if (Object.hasOwn(body, 'addressOctet')) {
+        const octet = body.addressOctet;
+        if (!Number.isInteger(octet) || octet < 2 || octet > 254) {
+          throw Object.assign(new Error('Client address octet must be between 2 and 254'), { status: 400 });
+        }
+        const address = current.address.split('.').slice(0, 3).join('.') + '.' + octet;
+        if (address !== current.address && Object.values(state.clients).some(item => item.id !== current.id && item.address === address) ||
+            Object.keys(PROTOCOLS).some(protocol => serverFor(state, protocol).address === address)) {
+          throw Object.assign(new Error('Client address is already in use'), { status: 409 });
+        }
+        current.address = address;
+      }
       if (Object.hasOwn(body, 'egress')) Object.assign(current, routing.validateClientEgress(body));
       current.name = name.trim();
       current.updatedAt = new Date().toISOString();

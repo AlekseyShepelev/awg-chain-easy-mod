@@ -438,3 +438,11 @@ dialog#failover-settings { margin: auto; }
 
 .server-names-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .server-names-row > .field { flex: 1 1 220px; min-width: 0; }
+
+.client-sort { appearance: none; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.client-sort:hover, .client-sort-indicator { color: var(--color-accent); }
+.client-sort-indicator:not(:empty) { margin-inline-start: 0.35em; }
+.client-address-edit { display: flex; gap: var(--space-1); }
+.client-address-edit input { width: 8em; }
+.client-address-edit input[readonly] { color: var(--color-text-muted); }
+#open-failover { margin-top: 10px; }

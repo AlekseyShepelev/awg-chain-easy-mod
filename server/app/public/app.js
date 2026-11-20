@@ -83,6 +83,10 @@
     "In use: {name}": "Используется: {name}",
     "Auto-return enabled": "Включён",
     "Auto-return disabled": "Выключен",
+    'Read-only address prefix': 'Неизменяемая часть адреса', 'Last address octet': 'Последний октет адреса',
+    'Client address octet must be between 2 and 254': 'Введите число от 2 до 254',
+    'Client address is already in use': 'Этот адрес уже используется',
+    'After changing the address, update the address in the client profile or import a fresh export.': 'После смены адреса обновите его в профиле на устройстве или импортируйте профиль заново.',
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -200,7 +204,7 @@
     'Connection: {name}': 'Подключение: {name}', 'Config: {name}': 'Конфигурация: {name}', 'QR code: {name}': 'QR-код: {name}',
     'Initiates to {endpoint}; keepalive {seconds}s': 'Подключается к {endpoint}; keepalive {seconds} сек.',
     'Delete client “{name}”? This permanently removes its private key.': 'Удалить клиента «{name}»? Его приватный ключ будет безвозвратно удалён.',
-    'Updated {time}': 'Обновлено {time}', 'Edit destination policy': 'Изменение правила маршрутизации', 'Save policy': 'Сохранить правило',
+    'Updated {time}': 'Обновлено в {time}', 'Edit destination policy': 'Изменение правила маршрутизации', 'Save policy': 'Сохранить правило',
     'Request failed ({status})': 'Ошибка запроса ({status})', 'Not authenticated': 'Требуется вход', 'Invalid password': 'Неверный пароль',
     'Invalid credentials': 'Неверный пароль', 'Too many login attempts': 'Слишком много попыток входа',
     'Incorrect password': 'Неверный пароль', 'Too many login attempts; try again later': 'Слишком много попыток входа; повторите позже',
@@ -427,10 +431,14 @@ function cell(label, content, className = '') {
   return item;
 }
 
-function statusBadge(client) {
+function clientStatus(client) {
   const age = client.runtimeLatestHandshakeAt ? Date.now() - Date.parse(client.runtimeLatestHandshakeAt) : Infinity;
-  const online = client.enabled && age >= -60000 && age < 300000;
-  return stateBadge(!client.enabled ? 'Disabled' : online ? 'Online' : 'Enabled', !client.enabled ? 'disabled' : online ? 'running' : 'enabled');
+  return !client.enabled ? 'Disabled' : age >= -60000 && age < 300000 ? 'Online' : 'Enabled';
+}
+
+function statusBadge(client) {
+  const label = clientStatus(client);
+  return stateBadge(label, { Disabled: 'disabled', Online: 'running', Enabled: 'enabled' }[label]);
 }
 
 function stateBadge(label, style) {
@@ -871,6 +879,9 @@ let renamingClientId = null;
 function openRenameClient(client) {
   renamingClientId = client.id;
   elements['rename-name'].value = client.name;
+  const divider = client.address.lastIndexOf('.') + 1;
+  document.querySelector('#rename-address-prefix').value = client.address.slice(0, divider);
+  document.querySelector('#rename-address-octet').value = client.address.slice(divider);
   updateRouteSelect(elements['rename-route'], lastData?.routing.upstreams || [], clientModeValue(client), true);
   updateClientModeHint(elements['rename-route'], elements['rename-route-hint']);
   text(elements['rename-error'], '');
@@ -962,10 +973,45 @@ async function openClientConfig(client, vpn = false) {
   }
 }
 
+const clientSortButtons = [...document.querySelectorAll('[data-client-sort]')];
+let clientSort = { key: null, direction: 1 };
+for (const control of clientSortButtons) {
+  control.addEventListener('click', () => {
+    const key = control.dataset.clientSort;
+    clientSort = { key, direction: clientSort.key === key ? -clientSort.direction : 1 };
+    if (lastData) renderClients(lastData.clients);
+  });
+}
+
+function sortedClients(clients) {
+  const { key, direction } = clientSort;
+  if (!key) return clients;
+  const address = value => value.split('.').reduce((n, octet) => n * 256 + Number(octet), 0);
+  const collator = new Intl.Collator(I18N.locale, { numeric: true, sensitivity: 'base' });
+  return [...clients].sort((a, b) => {
+    if (key === 'address') return direction * (address(a.address) - address(b.address));
+    if (key === 'handshake') {
+      const left = Date.parse(a.latestHandshakeAt), right = Date.parse(b.latestHandshakeAt);
+      if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : 0;
+      if (!Number.isFinite(right)) return -1;
+      return direction * (left - right);
+    }
+    const value = client => key === 'status' ? t(clientStatus(client)) : key === 'protocol' ? client.protocol || 'AWG3' : client.name;
+    return direction * collator.compare(value(a), value(b));
+  });
+}
+
 function renderClients(clients) {
+  for (const control of clientSortButtons) {
+    const active = control.dataset.clientSort === clientSort.key;
+    const header = control.closest('th');
+    if (active) header.setAttribute('aria-sort', clientSort.direction === 1 ? 'ascending' : 'descending');
+    else header.removeAttribute('aria-sort');
+    control.querySelector('.client-sort-indicator').textContent = active ? (clientSort.direction === 1 ? '↑' : '↓') : '';
+  }
   elements['client-rows'].replaceChildren();
   elements['empty-state'].hidden = clients.length !== 0;
-  for (const client of clients) {
+  for (const client of sortedClients(clients)) {
     const row = document.createElement('tr');
     row.classList.toggle('row-disabled', !client.enabled);
     const name = document.createElement('span');
@@ -1328,7 +1374,7 @@ elements['rename-form'].addEventListener('submit', async (event) => {
   elements['rename-save'].disabled = true;
   text(elements['rename-error'], '');
   try {
-    await request(`/api/wireguard/client/${renamingClientId}`, { method: 'PUT', body: JSON.stringify({ name: elements['rename-name'].value, ...clientModeBody(elements['rename-route'].value) }) });
+    await request(`/api/wireguard/client/${renamingClientId}`, { method: 'PUT', body: JSON.stringify({ name: elements['rename-name'].value, addressOctet: document.querySelector('#rename-address-octet').valueAsNumber, ...clientModeBody(elements['rename-route'].value) }) });
     elements['rename-dialog'].close();
     await refresh();
   } catch (error) { text(elements['rename-error'], error.message); }
