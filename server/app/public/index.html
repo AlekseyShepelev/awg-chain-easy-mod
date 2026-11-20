@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.5.1">
-  <script defer src="/app.js?v=2.5.1"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.5.2">
+  <script defer src="/app.js?v=2.5.2"></script>
 </head>
 <body>
   <header class="global-header">
@@ -305,11 +305,11 @@
       <label><span>Name</span><input id="rename-name" type="text" required maxlength="64" autocomplete="off"></label>
       <label><span>Routing mode</span><select id="rename-route" aria-describedby="rename-route-hint"></select></label>
       <p id="rename-route-hint" class="secondary-value"></p>
+      <p class="secondary-value">Changing the routing mode may interrupt active connections. No profile reimport is needed.</p>
       <div class="field wide"><label for="rename-address-octet">Address</label>
-        <div class="client-address-edit"><input id="rename-address-prefix" class="mono" aria-label="Read-only address prefix" readonly><input id="rename-address-octet" class="mono" aria-label="Last address octet" type="number" min="2" max="254" step="1" required></div>
+        <div class="client-address-edit"><span id="rename-address-prefix" class="mono"></span><input id="rename-address-octet" class="mono" aria-label="Last address octet" type="number" min="2" max="254" step="1" required></div>
         <p class="secondary-value">After changing the address, update the address in the client profile or import a fresh export.</p>
       </div>
-      <p class="secondary-value">Changing the routing mode may interrupt active connections. No profile reimport is needed.</p>
       <p id="rename-error" class="form-error" role="alert"></p>
 
     <div class="confirmation-actions modal-footer"><button id="close-rename" class="button secondary" type="button">Cancel</button><button id="rename-save" class="button primary" type="submit">Save changes</button></div></form>

@@ -442,7 +442,14 @@ dialog#failover-settings { margin: auto; }
 .client-sort { appearance: none; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
 .client-sort:hover, .client-sort-indicator { color: var(--color-accent); }
 .client-sort-indicator:not(:empty) { margin-inline-start: 0.35em; }
-.client-address-edit { display: flex; gap: var(--space-1); }
-.client-address-edit input { width: 8em; }
-.client-address-edit input[readonly] { color: var(--color-text-muted); }
+.client-address-edit {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  padding-inline: var(--space-2);
+}
+.client-address-edit:focus-within { outline: 2px solid var(--color-accent); }
+#rename-address-prefix { color: var(--color-text-muted); }
+#rename-address-octet { width: 4.5em; border: 0; outline: none; padding-inline-start: 0; background: transparent; }
 #open-failover { margin-top: 10px; }

@@ -931,7 +931,7 @@ function openRenameClient(client) {
   renamingClientId = client.id;
   elements['rename-name'].value = client.name;
   const divider = client.address.lastIndexOf('.') + 1;
-  document.querySelector('#rename-address-prefix').value = client.address.slice(0, divider);
+  document.querySelector('#rename-address-prefix').textContent = client.address.slice(0, divider);
   document.querySelector('#rename-address-octet').value = client.address.slice(divider);
   updateRouteSelect(elements['rename-route'], lastData?.routing.upstreams || [], clientModeValue(client), true);
   updateClientModeHint(elements['rename-route'], elements['rename-route-hint']);
