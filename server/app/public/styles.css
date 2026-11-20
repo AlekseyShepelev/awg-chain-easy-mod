@@ -455,3 +455,5 @@ dialog#failover-settings { margin: auto; }
 #open-failover { margin-top: 10px; }
 
 .about-mod-intro { margin-top: var(--space-4); }
+
+.about-awg-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }

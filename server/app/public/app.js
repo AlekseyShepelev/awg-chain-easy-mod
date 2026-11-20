@@ -1794,9 +1794,11 @@ document.querySelector('#about-awg-check').addEventListener('click', async (even
   const result = document.querySelector('#about-awg-result');
   button.disabled = true;
   result.hidden = false;
+  result.classList.remove('upstream-failover-on');
   text(result, 'Checking for updates…');
   try {
     const info = await request('/api/about/amneziawg-update');
+    result.classList.toggle('upstream-failover-on', info.updateAvailable === true);
     text(result, info.updateAvailable ? 'Update available: {version}' : 'AmneziaWG is up to date.', { version: info.latest });
   } catch (_) {
     text(result, 'Unable to check AmneziaWG updates');
