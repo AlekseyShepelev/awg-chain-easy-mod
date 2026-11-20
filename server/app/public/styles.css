@@ -216,10 +216,7 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 @media (max-width: 760px) { .row-actions.upstream-actions { justify-content: start; } }
 
 /* Create client: aligned fields, submit on its own bottom-left row. */
-#create-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
-#create-form > .field { min-width: 0; }
-#create-form > button[type="submit"] { grid-column: 1 / -1; justify-self: start; width: auto; white-space: nowrap; }
-@media (max-width: 760px) { #create-form { grid-template-columns: minmax(0, 1fr); } }
+#create-form > .field { width: 100%; min-width: 0; }
 
 .confirmation-message { margin-top: var(--space-4); line-height: 1.65; overflow-wrap: anywhere; }
 .confirmation-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-5); }
@@ -434,3 +431,9 @@ dialog#failover-settings { margin: auto; }
   background: var(--color-panel);
 }
 .footer-dialog.export-dialog .modal-footer { margin-top: auto; }
+
+#create-panel { width: min(520px, calc(100% - 32px)); }
+#upstream-config { height: 84px; min-height: 0; }
+.import-priority-hint { margin: 0; }
+.import-failover-row { flex-wrap: wrap; }
+#config-copy { order: -1; margin-inline-end: auto; }
