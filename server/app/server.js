@@ -580,6 +580,28 @@ async function api(request, response, url) {
     await routing.resetUpstreamTraffic();
     return send(response, 200, { success: true });
   }
+  if (url.pathname === '/api/about/amneziawg-update' && request.method === 'GET') {
+    try {
+      const version = /\b(\d+\.\d+\.\d+)\b/.exec(amneziawgVersion || '')?.[1];
+      if (!version) throw new Error('Unknown installed version');
+      const registryResponse = await fetch('https://hub.docker.com/v2/repositories/amneziavpn/amneziawg-go/tags?page_size=100&ordering=last_updated', {
+        signal: AbortSignal.timeout(8000), redirect: 'error',
+      });
+      if (!registryResponse.ok) throw new Error('Registry error');
+      const data = await registryResponse.json();
+      const compare = (a, b) => {
+        const left = a.split('.').map(Number), right = b.split('.').map(Number);
+        return left[0] - right[0] || left[1] - right[1] || left[2] - right[2];
+      };
+      const [latest] = data.results.filter(tag => /^\d+\.\d+\.\d+$/.test(tag.name) &&
+        tag.images?.some(image => image.os === 'linux' && image.architecture === process.arch.replace('x64', 'amd64')))
+        .map(tag => tag.name).sort((a, b) => compare(b, a));
+      if (!latest) throw new Error('No compatible versions');
+      return send(response, 200, { latest, updateAvailable: compare(latest, version) > 0 });
+    } catch (_) {
+      return send(response, 502, { error: 'Unable to check AmneziaWG updates' });
+    }
+  }
   if (url.pathname === '/api/about' && request.method === 'GET') {
     const info = JSON.parse(await fsp.readFile(path.join(__dirname, 'build-info.json'), 'utf8'));
     return send(response, 200, { ...info, amneziawgVersion });

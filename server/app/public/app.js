@@ -87,6 +87,14 @@
     'Client address octet must be between 2 and 254': 'Введите число от 2 до 254',
     'Client address is already in use': 'Этот адрес уже используется',
     'After changing the address, update the address in the client profile or import a fresh export.': 'После смены адреса обновите его в профиле на устройстве или импортируйте профиль заново.',
+    "Check for update": "Проверить обновление",
+    "Checking for updates\u2026": "Проверяем обновления…",
+    "AmneziaWG is up to date.": "Установлена актуальная версия.",
+    "Update available: {version}": "Доступна версия {version}",
+    "Unable to check AmneziaWG updates": "Не удалось проверить обновление AmneziaWG.",
+    "A unified routing mode, priority-based failover and editable upstream tunnels.": "Единый выбор режима маршрутизации, резервирование по приоритетам и редактирование выходных туннелей.",
+    "Sortable management tables, editable client addresses and sign-in sessions that survive container restarts.": "Сортировка таблиц, изменение адресов клиентов и сохранение входа после перезапуска контейнера.",
+    "Ordered health checks that use fallback URLs only when needed.": "Последовательные проверки доступности с обращением к запасным URL только при необходимости.",
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -1780,3 +1788,17 @@ elements['failover-return'].addEventListener('click', async () => {
 request('/api/session')
   .then((session) => session.authenticated ? showApp() : showLogin())
   .catch(() => showLogin());
+
+document.querySelector('#about-awg-check').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const result = document.querySelector('#about-awg-result');
+  button.disabled = true;
+  result.hidden = false;
+  text(result, 'Checking for updates…');
+  try {
+    const info = await request('/api/about/amneziawg-update');
+    text(result, info.updateAvailable ? 'Update available: {version}' : 'AmneziaWG is up to date.', { version: info.latest });
+  } catch (_) {
+    text(result, 'Unable to check AmneziaWG updates');
+  } finally { button.disabled = false; }
+});

@@ -453,3 +453,5 @@ dialog#failover-settings { margin: auto; }
 #rename-address-prefix { color: var(--color-text-muted); }
 #rename-address-octet { width: 4.5em; border: 0; outline: none; padding-inline-start: 0; background: transparent; }
 #open-failover { margin-top: 10px; }
+
+.about-mod-intro { margin-top: var(--space-4); }
