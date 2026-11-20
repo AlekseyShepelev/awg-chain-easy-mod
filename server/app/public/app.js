@@ -628,10 +628,56 @@ function losesFailoverCandidate(id) {
     && routing.upstreams.filter(u => u.id !== id && u.enabled && u.failoverPriority != null).length < 2;
 }
 const fallbackWarning = 'Fewer than two eligible tunnels will remain. The route will become fixed on the remaining tunnel, or blocked if none remains.';
+const tableSort = {
+  'upstreams-title': { key: 'priority', direction: 1 },
+  'policies-title': { key: 'priority', direction: 1 },
+};
+const tableSortButtons = [...document.querySelectorAll('[data-table-sort]')];
+for (const control of tableSortButtons) {
+  control.addEventListener('click', () => {
+    const order = tableSort[control.dataset.tableSort];
+    const key = control.dataset.sortKey;
+    order.direction = order.key === key ? -order.direction : 1;
+    order.key = key;
+    if (!lastData) return;
+    const { routing } = lastData;
+    if (control.dataset.tableSort === 'upstreams-title') renderUpstreams(routing);
+    else renderPolicies(routing.policies, routing.upstreams);
+  });
+}
+
+function sortRows(table, rows, getValue) {
+  const { key, direction } = tableSort[table];
+  for (const control of tableSortButtons.filter(button => button.dataset.tableSort === table)) {
+    const active = control.dataset.sortKey === key;
+    const header = control.closest('th');
+    if (active) header.setAttribute('aria-sort', direction === 1 ? 'ascending' : 'descending');
+    else header.removeAttribute('aria-sort');
+    control.querySelector('.client-sort-indicator').textContent = active ? (direction === 1 ? '↑' : '↓') : '';
+  }
+  const collator = new Intl.Collator(I18N.locale, { numeric: true, sensitivity: 'base' });
+  return [...rows].sort((a, b) => {
+    const left = getValue(a, key), right = getValue(b, key);
+    if (left == null) return right == null ? 0 : 1;
+    if (right == null) return -1;
+    return direction * (typeof left === 'number' ? left - right : collator.compare(left, right));
+  });
+}
+
 function renderUpstreams(routing) {
   const { failover } = routing;
-  const upstreams = [...routing.upstreams].sort((a, b) =>
-    (a.failoverPriority ?? Infinity) - (b.failoverPriority ?? Infinity));
+  const upstreams = sortRows('upstreams-title', routing.upstreams, (item, key) => {
+    if (key === 'priority') return item.failoverPriority;
+    if (key === 'availability') {
+      if (!failover.config.enabled || item.failoverPriority == null) return null;
+      const status = failover.health[item.id]?.status;
+      if (!item.enabled || ['unavailable', 'unhealthy'].includes(status)) return 0;
+      return status === 'healthy' ? 1 : null;
+    }
+    if (key === 'connection') return item.connectionStatus;
+    if (key === 'handshake') return Date.parse(item.latestHandshakeAt) || null;
+    return item.name;
+  });
   for (const id of upstreamCheckTimes.keys()) {
     if (!upstreams.some((item) => item.id === id)) upstreamCheckTimes.delete(id);
   }
@@ -751,7 +797,12 @@ function renderPolicies(policies, upstreams) {
   const locked = lastData?.routing.policiesEnabled === false;
   elements['policy-rows'].replaceChildren();
   elements['policy-empty'].hidden = policies.length !== 0;
-  for (const policy of policies) {
+  const sorted = sortRows('policies-title', policies, (item, key) => {
+    if (key === 'destination') return routeLabel(item.route, upstreams);
+    if (key === 'status') return Number(item.enabled);
+    return item[key];
+  });
+  for (const policy of sorted) {
     const matches = document.createElement('span');
     matches.className = 'secondary-value';
     matches.textContent = t('Domains: {domains}, networks: {networks}', { domains: policy.domains.length, networks: policy.networks.length });

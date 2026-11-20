@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.5.0">
-  <script defer src="/app.js?v=2.5.0"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.5.1">
+  <script defer src="/app.js?v=2.5.1"></script>
 </head>
 <body>
   <header class="global-header">
@@ -125,7 +125,7 @@
           <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add tunnel</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Server</th><th class="upstream-priority-column">Priority</th><th>Availability</th><th>Connection</th><th>Handshake</th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>
+              <thead><tr><th scope="col"><button type="button" class="client-sort" data-table-sort="upstreams-title" data-sort-key="name"><span>Server</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th scope="col"><button type="button" class="client-sort" data-table-sort="upstreams-title" data-sort-key="priority"><span>Priority</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th scope="col"><button type="button" class="client-sort" data-table-sort="upstreams-title" data-sort-key="availability"><span>Availability</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th scope="col"><button type="button" class="client-sort" data-table-sort="upstreams-title" data-sort-key="connection"><span>Connection</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th scope="col"><button type="button" class="client-sort" data-table-sort="upstreams-title" data-sort-key="handshake"><span>Handshake</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>
               <tbody id="upstream-rows"></tbody>
             </table>
             <div id="upstream-empty" class="empty-state" hidden><p>No upstream tunnels configured.</p></div>
@@ -144,7 +144,7 @@
           <div class="section-heading"><div><h2 id="policies-title">Routing policies</h2><p>Domain results are added with DNS TTL-based expiration.</p><p id="policies-global-status" role="status"></p></div><div class="routing-header-actions"><button id="new-policy-button" class="button primary compact" type="button">New policy</button><div class="segmented-switch policy-mode-buttons" role="group" aria-label="Routing policies"><button id="policies-enable" class="button primary compact" type="button" aria-pressed="true">Enable</button><button id="policies-disable" class="button secondary compact" type="button" aria-pressed="false">Disable</button></div></div></div><p class="policy-switch-hint">Switching policies may interrupt automatic-mode client connections. Individual rule settings are preserved.</p>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Priority</th><th>Name</th><th>Matches</th><th>Destination</th><th>Status</th><th class="actions-column">Actions</th></tr></thead>
+              <thead><tr><th scope="col"><button type="button" class="client-sort" data-table-sort="policies-title" data-sort-key="priority"><span>Priority</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th scope="col"><button type="button" class="client-sort" data-table-sort="policies-title" data-sort-key="name"><span>Name</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th>Matches</th><th scope="col"><button type="button" class="client-sort" data-table-sort="policies-title" data-sort-key="destination"><span>Destination</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th scope="col"><button type="button" class="client-sort" data-table-sort="policies-title" data-sort-key="status"><span>Status</span><span class="client-sort-indicator" aria-hidden="true"></span></button></th><th class="actions-column">Actions</th></tr></thead>
               <tbody id="policy-rows"></tbody>
             </table>
             <div id="policy-empty" class="empty-state"><p>No destination policies configured.</p></div>
