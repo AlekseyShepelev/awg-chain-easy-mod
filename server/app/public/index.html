@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.4.7">
-  <script defer src="/app.js?v=2.4.7"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.4.8">
+  <script defer src="/app.js?v=2.4.8"></script>
 </head>
 <body>
   <header class="global-header">
@@ -104,12 +104,12 @@
 
         <section class="create-panel" aria-labelledby="default-route-title">
           <div class="section-heading">
-            <div><h2 id="default-route-title">Operating mode</h2></div>
+            <div><h2 id="default-route-title">Operating mode</h2><p>Determines where traffic from clients in Automatic mode goes when no routing rule matches.</p><p><strong>Fixed route</strong> — <span>Traffic uses only the selected direction. If the selected tunnel is unavailable, traffic is blocked.</span></p><p><strong>Automatic failover</strong> — <span>If the preferred tunnel fails its checks, the system switches to the next available tunnel by priority. If none are available, traffic is blocked.</span></p></div>
           </div>
           <form id="default-route-form" class="stack-form">
 <div class="segmented-switch" role="group" aria-label="Route mode"><button type="button" id="mode-fixed" class="button secondary">Fixed route</button><button type="button" id="mode-automatic" class="button secondary">Automatic failover</button></div>
-<p id="operating-mode-hint" class="secondary-value"></p>
-<div id="route-automatic" hidden><p id="route-preferred"></p><p id="route-return"></p><p id="route-duplicate" class="form-error" hidden>Some tunnels have the same saved priority. Assign different priorities to remove the tie.</p><button id="open-failover" type="button" class="button secondary">Failover parameters</button></div>
+
+<div id="route-automatic" hidden><p id="route-preferred"></p><p id="route-in-use" hidden></p><p id="route-return"></p><p id="route-duplicate" class="form-error" hidden>Some tunnels have the same saved priority. Assign different priorities to remove the tie.</p><button id="open-failover" type="button" class="button secondary">Failover parameters</button></div>
 <div id="route-fixed">
   <div class="route-direction"><div class="field"><label for="default-route">Destination</label><select id="default-route" required></select><p id="route-draft" hidden>Changes are not applied.</p></div>
   <button id="save-fixed-route" class="button primary" type="submit">Save default</button></div>
@@ -122,7 +122,7 @@
 
 
         <section class="resource-section spaced" aria-labelledby="upstreams-title">
-          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels and failover</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add tunnel</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
+          <div class="section-heading"><div><h2 id="upstreams-title">Upstream tunnels</h2><p id="failover-status" role="status">Loading tunnels…</p></div><div class="row-actions routing-header-actions"><button id="new-upstream-button" class="button primary compact" type="button">Add tunnel</button><button id="reset-upstream-statistics" class="button danger compact" type="button">Reset all</button><button id="upstreams-refresh" class="button secondary compact" type="button">Refresh</button></div></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Server</th><th class="upstream-priority-column">Priority</th><th>Availability</th><th>Connection</th><th>Handshake</th><th>Transfer</th><th class="actions-column">Actions</th></tr></thead>

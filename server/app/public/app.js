@@ -76,6 +76,13 @@
     'Change operating mode': 'Изменить режим работы', 'Change mode': 'Переключить',
     'Switch to the saved fixed route? Automatic failover will stop. Active connections may need to reconnect.': 'Перейти на сохранённый фиксированный маршрут? Автоматическое резервирование отключится. Активным соединениям может понадобиться переподключение.',
     'Enable automatic failover? The default route will be selected by tunnel priority and availability. Active connections may need to reconnect.': 'Включить автоматическое резервирование? Маршрут будет выбран по приоритету и доступности туннелей. Активным соединениям может понадобиться переподключение.',
+    "Determines where traffic from clients in Automatic mode goes when no routing rule matches.": "Определяет, куда направляется трафик клиентов у которых установлен режим «Автоматически», если ни одно правило маршрутизации не подошло.",
+    "Traffic uses only the selected direction. If the selected tunnel is unavailable, traffic is blocked.": "трафик идёт только по выбранному направлению. Если выбранный туннель недоступен, трафик просто блокируется.",
+    "If the preferred tunnel fails its checks, the system switches to the next available tunnel by priority. If none are available, traffic is blocked.": "если предпочтительный туннель перестаёт проходить проверки, система переключается на следующий доступный туннель согласно приоритета. Если доступные туннели закончились, трафик блокируется.",
+    "Preferred tunnel unavailable": "недоступен",
+    "In use: {name}": "Используется: {name}",
+    "Auto-return enabled": "Включён",
+    "Auto-return disabled": "Выключен",
     'About': 'О программе', 'Fork version': 'Версия форка', 'Base commit': 'Базовый коммит', 'Build commit': 'Коммит сборки', 'QR code': 'QR-код', 'Fork repository': 'Репозиторий форка', 'Original project': 'Исходный проект', 'AmneziaWG runtime': 'Версия AmneziaWG', 'Repository': 'Репозиторий', 'Project author': 'Автор проекта',
     "AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.": "AWG Chain Easy — веб-панель для управления VPN-шлюзом на базе AmneziaWG 3, AmneziaWG 2 и WireGuard. В ней можно управлять клиентскими профилями и направлять трафик напрямую или через выходные туннели по правилам для доменов и IP, с автоматическим резервированием.",
     "AWG Chain Easy Mod adds:": "AWG Chain Easy Mod добавляет:",
@@ -614,7 +621,9 @@ function losesFailoverCandidate(id) {
 }
 const fallbackWarning = 'Fewer than two eligible tunnels will remain. The route will become fixed on the remaining tunnel, or blocked if none remains.';
 function renderUpstreams(routing) {
-  const { upstreams, failover } = routing;
+  const { failover } = routing;
+  const upstreams = [...routing.upstreams].sort((a, b) =>
+    (a.failoverPriority ?? Infinity) - (b.failoverPriority ?? Infinity));
   for (const id of upstreamCheckTimes.keys()) {
     if (!upstreams.some((item) => item.id === id)) upstreamCheckTimes.delete(id);
   }
@@ -1428,9 +1437,6 @@ function routeFact(id, label, value, tone = '') {
 function renderRouteMode(routing) {
   const saved = routing.failover.config.enabled ? 'automatic' : 'fixed';
   routeMode = saved;
-  text(routeControl('operating-mode-hint'), saved === 'fixed'
-    ? 'Uses the selected direction for automatic clients when no routing rule matches. It does not switch tunnels.'
-    : 'For automatic clients outside routing rules, switches to an available tunnel based on priority.');
   for (const mode of ['fixed', 'automatic']) {
     const button = routeControl('mode-' + mode);
     button.classList.toggle('primary', mode === routeMode);
@@ -1446,12 +1452,23 @@ function renderRouteMode(routing) {
   const eligible = routing.upstreams.filter(u => u.enabled && u.failoverPriority != null).sort((a,b) => a.failoverPriority-b.failoverPriority);
   const preferred = eligible[0];
   routeFact('route-preferred', 'Preferred: {name}', preferred?.name || '—');
+  const effective = routing.effectiveDefaultRoute;
+  const current = effective?.type === 'upstream' && routing.upstreams.find(u => u.id === effective.upstreamId);
+  const showBackup = saved === 'automatic' && preferred && current && current.id !== preferred.id &&
+    ['unavailable', 'unhealthy'].includes(routing.failover.health[preferred.id]?.status);
+  routeControl('route-in-use').hidden = !showBackup;
+  if (showBackup) {
+    const unavailable = document.createElement('span');
+    unavailable.className = 'upstream-failover-off';
+    unavailable.textContent = ' — ' + (I18N.language === 'ru' ? t('Preferred tunnel unavailable') : 'unavailable');
+    routeControl('route-preferred').append(unavailable);
+    routeFact('route-in-use', 'In use: {name}', current.name, 'upstream-failover-on');
+  }
   const duplicates = eligible.some((u, i) => i > 0 && u.failoverPriority === eligible[i - 1].failoverPriority);
   routeControl('route-duplicate').hidden = !duplicates;
   const autoReturn = routing.failover.config.autoFailback;
-  routeFact('route-return', 'Automatic return: {name}', t(autoReturn ? 'enabled' : 'disabled'), autoReturn ? 'upstream-failover-on' : 'upstream-failover-off');
+  routeFact('route-return', 'Automatic return: {name}', (I18N.language === 'ru' ? t(autoReturn ? 'Auto-return enabled' : 'Auto-return disabled') : autoReturn ? 'Enabled' : 'Disabled'), autoReturn ? 'upstream-failover-on' : 'upstream-failover-off');
   routeControl('fixed-priority-note').hidden = saved !== 'fixed';
-  routeControl('upstreams-title').textContent = t(saved === 'fixed' ? 'Upstream tunnels' : 'Upstream tunnels and failover');
   routeControl('upstream-rows').closest('table').classList.toggle('fixed-route-table', saved === 'fixed');
 
 }
