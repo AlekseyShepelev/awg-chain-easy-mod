@@ -8,8 +8,8 @@
   <link rel="icon" href="/favicon.svg?v=20261118" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico?v=20261118" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261118">
-  <link rel="stylesheet" href="/styles.css?v=2.4.6">
-  <script defer src="/app.js?v=2.4.6"></script>
+  <link rel="stylesheet" href="/styles.css?v=2.4.7">
+  <script defer src="/app.js?v=2.4.7"></script>
 </head>
 <body>
   <header class="global-header">
@@ -109,11 +109,11 @@
           <form id="default-route-form" class="stack-form">
 <div class="segmented-switch" role="group" aria-label="Route mode"><button type="button" id="mode-fixed" class="button secondary">Fixed route</button><button type="button" id="mode-automatic" class="button secondary">Automatic failover</button></div>
 <p id="operating-mode-hint" class="secondary-value"></p>
-<div id="route-automatic" hidden><p id="route-preferred"></p><p id="route-return"></p><p id="route-duplicate" class="form-error" hidden>Some tunnels have the same saved priority. Assign different priorities to remove the tie.</p><p>Chooses an available tunnel with the lowest priority number.</p><button id="open-failover" type="button" class="button secondary">Failover parameters</button></div>
+<div id="route-automatic" hidden><p id="route-preferred"></p><p id="route-return"></p><p id="route-duplicate" class="form-error" hidden>Some tunnels have the same saved priority. Assign different priorities to remove the tie.</p><button id="open-failover" type="button" class="button secondary">Failover parameters</button></div>
 <div id="route-fixed">
   <div class="route-direction"><div class="field"><label for="default-route">Destination</label><select id="default-route" required></select><p id="route-draft" hidden>Changes are not applied.</p></div>
   <button id="save-fixed-route" class="button primary" type="submit">Save default</button></div>
-  <p id="route-hint"></p>
+
 </div>
           </form>
           <p id="default-route-error" class="form-error" role="alert"></p>
@@ -158,8 +158,10 @@
         <h2>Server name</h2>
         <p>Used in exported configurations, vpn:// keys and QR codes.</p>
         <form id="server-settings-form" class="stack-form">
+          <div class="server-names-row">
           <div class="field"><label for="settings-server-name">Name in client profiles</label><input id="settings-server-name" maxlength="64" required></div>
           <div class="field"><label for="settings-panel-name">Name in panel</label><input id="settings-panel-name" maxlength="64" placeholder="Server A"></div>
+          </div>
           <p id="server-settings-message" role="status"></p>
           <div><button class="button primary" type="submit">Save</button></div>
         </form>

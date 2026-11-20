@@ -1453,10 +1453,7 @@ function renderRouteMode(routing) {
   routeControl('fixed-priority-note').hidden = saved !== 'fixed';
   routeControl('upstreams-title').textContent = t(saved === 'fixed' ? 'Upstream tunnels' : 'Upstream tunnels and failover');
   routeControl('upstream-rows').closest('table').classList.toggle('fixed-route-table', saved === 'fixed');
-  const direction = routeFromValue(elements['default-route'].value);
-  text(routeControl('route-hint'), direction.type === 'direct' ? 'Traffic exits directly through Server A.'
-    : direction.type === 'blocked' ? 'Unmatched traffic is blocked.'
-      : 'Traffic uses only {name}. If unavailable, traffic is blocked.', {name: routeLabel(direction, routing.upstreams)});
+
 }
 async function saveRouteMode(mode, route) {
   if (routeSaving || !lastData) return;
@@ -1624,6 +1621,7 @@ elements['failover-form'].addEventListener('submit', async (event) => {
       }),
     });
     failoverFormDirty = false;
+    elements['failover-settings'].close();
     showMessage('Settings saved.');
     await refresh();
   } catch (error) { text(elements['failover-error'], error.message); }

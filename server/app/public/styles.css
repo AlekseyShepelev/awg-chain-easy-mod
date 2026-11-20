@@ -400,8 +400,6 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 
 #default-route-form > .segmented-switch { flex-wrap: wrap; align-self: flex-start; }
 
-#route-fixed, #route-automatic { min-height: 160px; }
-#route-return + p:not([hidden]), #route-duplicate + p { margin-top: var(--space-3); }
 .route-direction { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-2); }
 .route-direction > button { margin-top: 18px; }
 #route-draft { color: var(--color-warning, #f1ad55); }
@@ -437,3 +435,6 @@ dialog#failover-settings { margin: auto; }
 .import-priority-hint { margin: 0; }
 .import-failover-row { flex-wrap: wrap; }
 #config-copy { order: -1; margin-inline-end: auto; }
+
+.server-names-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.server-names-row > .field { flex: 1 1 220px; min-width: 0; }
