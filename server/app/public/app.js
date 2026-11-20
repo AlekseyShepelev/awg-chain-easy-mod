@@ -796,6 +796,15 @@ function renderUpstreams(routing) {
   }
 }
 
+function editShortcut(label, action) {
+  const control = document.createElement('button');
+  control.type = 'button';
+  control.className = 'upstream-edit-link';
+  control.textContent = label;
+  control.addEventListener('click', action);
+  return control;
+}
+
 function renderPolicies(policies, upstreams) {
   const locked = lastData?.routing.policiesEnabled === false;
   elements['policy-rows'].replaceChildren();
@@ -824,10 +833,10 @@ function renderPolicies(policies, upstreams) {
     }));
     const row = document.createElement('tr');
     row.append(
-      cell('Priority', String(policy.priority), 'numeric'),
-      cell('Name', policy.name, 'client-name'),
+      cell('Priority', editShortcut(String(policy.priority), () => openPolicyEditor(policy, upstreams, 'priority')), 'numeric'),
+      cell('Name', editShortcut(policy.name, () => openPolicyEditor(policy, upstreams, 'name')), 'client-name'),
       cell('Matches', matches),
-      cell('Destination', routeLabel(policy.route, upstreams)),
+      cell('Destination', editShortcut(routeLabel(policy.route, upstreams), () => openPolicyEditor(policy, upstreams, 'route'))),
       cell('Status', stateBadge(policy.enabled ? 'Enabled' : 'Disabled', policy.enabled ? 'running' : 'disabled'), 'status-column'),
       cell('Actions', actions, 'actions-column'),
     );
@@ -932,7 +941,7 @@ function openPeerConnection(client) {
 let renamingClientId = null;
 let originalClientEdit = null;
 
-function openRenameClient(client) {
+function openRenameClient(client, field = 'name') {
   renamingClientId = client.id;
   elements['rename-name'].value = client.name;
   const divider = client.address.lastIndexOf('.') + 1;
@@ -947,8 +956,9 @@ function openRenameClient(client) {
     route: clientModeValue(client),
   };
   elements['rename-dialog'].showModal();
-  elements['rename-name'].focus();
-  elements['rename-name'].select();
+  const control = document.getElementById(field === 'address' ? 'rename-address-octet' : 'rename-' + field);
+  control.focus();
+  if (field === 'name') control.select();
 }
 
 const exportMode = document.querySelector('#export-mode');
@@ -1035,7 +1045,7 @@ async function openClientConfig(client, vpn = false) {
 }
 
 const clientSortButtons = [...document.querySelectorAll('[data-client-sort]')];
-let clientSort = { key: 'name', direction: 1 };
+let clientSort = { key: 'address', direction: 1 };
 for (const control of clientSortButtons) {
   control.addEventListener('click', () => {
     const key = control.dataset.clientSort;
@@ -1077,9 +1087,10 @@ function renderClients(clients) {
     row.classList.toggle('row-disabled', !client.enabled);
     const name = document.createElement('span');
     name.className = 'client-name';
-    name.textContent = client.name;
+    name.append(editShortcut(client.name, () => openRenameClient(client)));
     const marker = document.createElement('small');
     marker.className = 'secondary-value'; marker.textContent = clientModeLabel(clientModeValue(client));
+    marker.replaceChildren(editShortcut(marker.textContent, () => openRenameClient(client, 'route')));
     name.append(document.createElement('br'), marker);
     if (client.reverseInitiation) name.title = t('Initiates to {endpoint}; keepalive {seconds}s', { endpoint: client.reverseInitiation.endpoint, seconds: client.reverseInitiation.persistentKeepalive });
     const transfer = document.createElement('span');
@@ -1122,7 +1133,7 @@ function renderClients(clients) {
     row.append(
       cell('Name', name),
       cell('Protocol', client.protocol || 'AWG3', 'mono'),
-      cell('Address', client.address, 'mono'),
+      cell('Address', editShortcut(client.address, () => openRenameClient(client, 'address')), 'mono'),
       cell('Status', statusBadge(client), 'status-column'),
       cell('Latest handshake', time(client.latestHandshakeAt, true), 'numeric'),
       cell('Transfer', transfer),
@@ -1213,7 +1224,7 @@ function resetPolicyEditor() {
   text(elements['policy-error'], '');
 }
 
-function openPolicyEditor(policy = null, upstreams = []) {
+function openPolicyEditor(policy = null, upstreams = [], field = 'name') {
   resetPolicyEditor();
   if (policy) {
     editingPolicyId = policy.id;
@@ -1226,7 +1237,7 @@ function openPolicyEditor(policy = null, upstreams = []) {
     updateRouteSelect(elements['policy-route'], upstreams, routeValue(policy.route));
   }
   elements['policy-create-panel'].showModal();
-  elements['policy-name'].focus();
+  elements['policy-' + field].focus();
 }
 
 elements['login-form'].addEventListener('submit', async (event) => {
