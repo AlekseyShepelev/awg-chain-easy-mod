@@ -1,0 +1,56 @@
+[
+  [
+    "2.6",
+    [
+      "IPv6 addresses in upstream tunnel endpoints.",
+      "Remote server ping and connection duration.",
+      "Time since client and tunnel traffic counters were reset.",
+      "Optional routing rules for clients pinned to a tunnel.",
+      "Reconnect reminders when switching routing rules and a localized changelog with build dates."
+    ]
+  ],
+  [
+    "2.5",
+    [
+      "Sortable tables and shortcuts for editing individual fields.",
+      "Editable final IPv4 octet with duplicate-address validation.",
+      "AmneziaWG update checks and lower HTTPS probe traffic."
+    ]
+  ],
+  [
+    "2.4",
+    [
+      "One control for choosing fixed routing or automatic failover.",
+      "Confirmation when changing modes and traffic blocking when no suitable tunnel is available.",
+      "Panel sessions survive restarts and dialogs use a consistent layout."
+    ]
+  ],
+  [
+    "2.3",
+    [
+      "Failover settings moved to the Routing page."
+    ]
+  ],
+  [
+    "2.2",
+    [
+      "Upstream tunnels and failover combined in one table.",
+      "Edit tunnel names, endpoints, ports, priorities and configurations.",
+      "Set failover priority during import."
+    ]
+  ],
+  [
+    "2.1",
+    [
+      "Unified export for .conf files, vpn:// keys and QR codes.",
+      "Fork branding and build commit details."
+    ]
+  ],
+  [
+    "2.0",
+    [
+      "Per-client routes, Amnezia exports and persistent statistics.",
+      "Russian and English interface and panel settings."
+    ]
+  ]
+]

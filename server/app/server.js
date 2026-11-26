@@ -8,7 +8,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { RoutingManager, DnsPolicyProxy } = require('./routing');
 const { ClientStatistics, runtimeGeneration } = require('./client-statistics');
-const { portRange, reverseInitiation, peerConnectionLines } = require('./connections');
+const { portRange, reverseInitiation, peerConnectionLines, clientOnlinePeriod } = require('./connections');
 const { LoginGuard, verifyPassword, clientAddress, trustedProxies, sessionCookie } = require('./auth');
 const { toggle, awg31Parameters, vpnUri, attachment } = require('./profile-export');
 
@@ -334,7 +334,7 @@ let routing;
 let dnsProxy;
 
 function clearChangedClientConnections(previous, next) {
-  const signature = (client) => client ? JSON.stringify([client.enabled, client.egress || 'default', client.upstreamId || null, client.address]) : null;
+  const signature = (client) => client ? JSON.stringify([client.enabled, client.egress || 'default', client.upstreamId || null, client.useRoutingPolicies === true, client.address]) : null;
   const addresses = new Set();
   for (const id of new Set([...Object.keys(previous.clients), ...Object.keys(next.clients)])) {
     const before = previous.clients[id], after = next.clients[id];
@@ -395,8 +395,19 @@ function runtimeStats() {
 let clientStatistics;
 let statisticsTimer;
 let lastStatisticsError = 0;
+let onlinePeriods = new Map();
 function observeStatistics(stats = runtimeStats(), restartIds = new Set()) {
-  try { clientStatistics?.observe(Object.values(state.clients), stats, restartIds); }
+  const clients = Object.values(state.clients);
+  const nextPeriods = new Map();
+  const now = Date.now();
+  for (const client of clients) {
+    if (!client.enabled) continue;
+    const previous = restartIds.has(client.id) ? null : onlinePeriods.get(client.publicKey);
+    const period = clientOnlinePeriod(previous, stats.get(client.publicKey), now);
+    if (period) nextPeriods.set(client.publicKey, period);
+  }
+  onlinePeriods = nextPeriods;
+  try { clientStatistics?.observe(clients, stats, restartIds); }
   catch (error) {
     if (Date.now() - lastStatisticsError > 60_000) {
       console.error('[awg-chain-easy] Cannot persist client statistics: ' + error.message);
@@ -417,12 +428,14 @@ function publicClients() {
       enabled: client.enabled,
       egress: client.egress || 'default',
       upstreamId: client.egress === 'upstream' ? client.upstreamId : null,
+      useRoutingPolicies: !client.egress || client.egress === 'default' || (client.egress === 'upstream' && client.useRoutingPolicies === true),
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
       reverseInitiation: client.reverseInitiation || null,
       endpoint: stats.get(client.publicKey)?.endpoint || null,
       transferRx: stats.get(client.publicKey)?.transferRx || 0,
       transferTx: stats.get(client.publicKey)?.transferTx || 0,
+      onlineSince: onlinePeriods.get(client.publicKey)?.since || null,
       runtimeLatestHandshakeAt: stats.get(client.publicKey)?.latestHandshakeAt || null,
       latestHandshakeAt: stats.get(client.publicKey)?.latestHandshakeAt || null,
       ...(clientStatistics ? clientStatistics.values(client) : {}),
@@ -666,13 +679,13 @@ async function api(request, response, url) {
   }
   if (url.pathname === '/api/wireguard/client' && request.method === 'GET') return send(response, 200, publicClients());
   if (url.pathname === '/api/wireguard/client' && request.method === 'POST') {
-    const { name, protocol = 'AWG3', egress = 'default', upstreamId = null } = await readJson(request);
+    const { name, protocol = 'AWG3', egress = 'default', upstreamId = null, useRoutingPolicies = false } = await readJson(request);
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 64) throw Object.assign(new Error('Name must contain 1-64 characters'), { status: 400 });
     if (!Object.hasOwn(PROTOCOLS, protocol)) throw Object.assign(new Error('Protocol must be AWG3, AWG2, or WG'), { status: 400 });
     let client;
     await mutate(() => {
       if (Object.values(state.clients).some((item) => item.name.toLowerCase() === name.trim().toLowerCase())) throw Object.assign(new Error('Client name already exists'), { status: 409 });
-      const clientRoute = routing.validateClientEgress({ egress, upstreamId });
+      const clientRoute = routing.validateClientEgress({ egress, upstreamId, useRoutingPolicies });
       const address = routing.allocateClientAddress(protocolSettings(protocol).prefix);
       const privateKey = generatePrivateKey(protocol);
       const id = crypto.randomUUID();
@@ -810,7 +823,12 @@ async function api(request, response, url) {
         }
         current.address = address;
       }
-      if (Object.hasOwn(body, 'egress')) Object.assign(current, routing.validateClientEgress(body));
+      if (Object.hasOwn(body, 'egress') || Object.hasOwn(body, 'useRoutingPolicies')) {
+        const egress = body.egress ?? current.egress ?? 'default';
+        const upstreamId = Object.hasOwn(body, 'upstreamId') ? body.upstreamId : current.upstreamId;
+        const useRoutingPolicies = Object.hasOwn(body, 'useRoutingPolicies') ? body.useRoutingPolicies : current.useRoutingPolicies;
+        Object.assign(current, routing.validateClientEgress({ egress, upstreamId, useRoutingPolicies }));
+      }
       if (Object.hasOwn(body, 'name')) current.name = name.trim();
       current.updatedAt = new Date().toISOString();
     });

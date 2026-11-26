@@ -6,7 +6,8 @@ const { ClientStatistics, runtimeGeneration } = require('./client-statistics');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { spawn, spawnSync } = require('node:child_process');
+const { isIP, isIPv6 } = require('node:net');
+const { execFile, spawn, spawnSync } = require('node:child_process');
 const { listenPort, portRange, withListenPort, connectionStatus } = require('./connections');
 const { UpstreamNetwork, chooseTransit, stopProcess, alive } = require('./upstream-network');
 const { normalizeFailover, FailoverState, probeUpstream, failoverPriority, priorityFromConfig,
@@ -23,6 +24,16 @@ const MAX_UPSTREAMS = 8;
 
 function httpError(message, status = 400) {
   return Object.assign(new Error(message), { status });
+}
+
+function validateUpstreamEndpoint(endpoint) {
+  const match = /^(?:\[([^\]\s]+)\]|([^:\s]+)):(\d+)$/.exec(endpoint);
+  if (match && Number(match[3]) >= 1 && Number(match[3]) <= 65535) {
+    const [, ipv6, host] = match;
+    if (ipv6 ? !ipv6.includes('%') && isIPv6(ipv6)
+      : ipv4ToNumber(host) !== null || /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(host)) return;
+  }
+  throw httpError('Upstream Endpoint must be an IPv4 address, bracketed IPv6 address, or hostname plus a valid port');
 }
 
 function run(program, args = [], input = undefined) {
@@ -188,11 +199,7 @@ class RoutingManager {
     if (!address) throw httpError('Upstream config requires an IPv4 Interface Address');
     validateNetwork(address);
     if (!parsed.Peer.AllowedIPs.split(',').map((item) => item.trim()).includes('0.0.0.0/0')) throw httpError('Upstream config Peer AllowedIPs must include 0.0.0.0/0');
-    const endpoint = parsed.Peer.Endpoint.match(/^([^:\s]+):(\d+)$/);
-    if (!endpoint || Number(endpoint[2]) < 1 || Number(endpoint[2]) > 65535 ||
-        (ipv4ToNumber(endpoint[1]) === null && !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(endpoint[1]))) {
-      throw httpError('Upstream Endpoint must be an IPv4 address or hostname plus a valid port');
-    }
+    validateUpstreamEndpoint(parsed.Peer.Endpoint);
     const mtu = parsed.Interface.MTU ? Number(parsed.Interface.MTU) : this.mtu;
     if (!Number.isInteger(mtu) || mtu < 576 || mtu > 9000) throw httpError('Upstream MTU is invalid');
     const port = listenPort(parsed.Interface.ListenPort);
@@ -315,7 +322,7 @@ class RoutingManager {
       let config;
       if (input?.mode === 'endpoint' && typeof input.endpoint === 'string') {
         const endpoint = input.endpoint.trim();
-        if (!/^[a-z0-9.-]+:\d{1,5}$/i.test(endpoint)) throw httpError('Upstream Endpoint must be an IPv4 address or hostname plus a valid port');
+        validateUpstreamEndpoint(endpoint);
         let count = 0;
         config = original.replace(/^([ \t]*Endpoint[ \t]*=[ \t]*)[^\r\n]+/gim, (_, prefix) => {
           count++;
@@ -489,15 +496,20 @@ class RoutingManager {
     return addresses;
   }
 
-  validateClientEgress({ egress = 'default', upstreamId = null }) {
+  validateClientEgress({ egress = 'default', upstreamId = null, useRoutingPolicies = false }) {
     if (!['default', 'direct', 'upstream'].includes(egress)) throw httpError('Client egress must be default, direct, or upstream');
     if (egress === 'upstream' && (typeof upstreamId !== 'string' || !Object.hasOwn(this.state.upstreams, upstreamId))) throw httpError('Selected client upstream does not exist');
-    return { egress, upstreamId: egress === 'upstream' ? upstreamId : null };
+    if (typeof useRoutingPolicies !== 'boolean') throw httpError('Routing policy preference must be a boolean');
+    return { egress, upstreamId: egress === 'upstream' ? upstreamId : null,
+      useRoutingPolicies: egress === 'upstream' && useRoutingPolicies };
   }
 
   clientSourceSets() {
-    const sets = { direct_clients_v4: this.directAddresses(), blocked_clients_v4: [] };
-    for (let slot = 0; slot < MAX_UPSTREAMS; slot++) sets[`client_upstream_${slot}`] = [];
+    const sets = { direct_clients_v4: this.directAddresses(), blocked_clients_v4: [], policy_pinned_clients_v4: [] };
+    for (let slot = 0; slot < MAX_UPSTREAMS; slot++) {
+      sets[`client_upstream_${slot}`] = [];
+      sets[`policy_client_upstream_${slot}`] = [];
+    }
     for (const client of this.clientRoutes()) {
       if (client.enabled === false || !['direct', 'upstream'].includes(client.egress)) continue;
       if (ipv4ToNumber(client.address) === null) throw new Error('Invalid client IPv4 address');
@@ -506,7 +518,12 @@ class RoutingManager {
         const upstream = this.state.upstreams[client.upstreamId];
         const name = upstream && Number.isInteger(upstream.slot) && upstream.slot >= 0 && upstream.slot < MAX_UPSTREAMS
           ? `client_upstream_${upstream.slot}` : 'blocked_clients_v4';
-        sets[name].push(client.address);
+        if (client.useRoutingPolicies === true && upstream && name !== 'blocked_clients_v4') {
+          sets.policy_pinned_clients_v4.push(client.address);
+          sets[`policy_${name}`].push(client.address);
+        } else {
+          sets[name].push(client.address);
+        }
       }
     }
     return Object.fromEntries(Object.entries(sets).map(([name, values]) => [name, [...new Set(values)]]));
@@ -530,6 +547,8 @@ class RoutingManager {
       `        ip saddr @blocked_clients_v4 meta mark set ${BLOCK_MARK} ct mark set meta mark return`,
       ...Array.from({ length: MAX_UPSTREAMS }, (_, slot) => `        ip saddr @client_upstream_${slot} meta mark set 0x${(0x201 + slot).toString(16)} ct mark set meta mark return`),
     ].join('\n');
+    const pinnedFallback = Array.from({ length: MAX_UPSTREAMS }, (_, slot) =>
+      `        ip saddr @policy_client_upstream_${slot} meta mark set 0x${(0x201 + slot).toString(16)} ct mark set meta mark return`).join('\n');
     if (ipv4ToNumber(this.dnsUpstream) === null) throw new Error('DNS upstream must be IPv4');
     const declarations = activePolicies.map((policy) => `    ${this.policyNftSet(policy)}`).join('\n');
     const classification = activePolicies.map((policy) => `        ip daddr @${policySetName(policy)} meta mark set ${routeMark(policy.route, this.state)} ct mark set meta mark return`).join('\n');
@@ -564,10 +583,17 @@ class RoutingManager {
       `${clientClassification}\n` +
       `        meta mark set ct mark\n` +
       `        ct mark != 0 return\n` +
+      `        ip saddr @policy_pinned_clients_v4 jump pinned_policy\n` +
+      `        ct mark != 0 return\n` +
       `        ip daddr @system_direct_v4 meta mark set ${DIRECT_MARK} ct mark set meta mark return\n` +
       `        jump policy_gate\n` +
       `        ct mark != 0 return\n` +
       `        jump default_route\n` +
+      `    }\n` +
+      `    chain pinned_policy {\n` +
+      `        jump policy_gate\n` +
+      `        ct mark != 0 return\n` +
+      `${pinnedFallback}\n` +
       `    }\n` +
       `    chain policy_gate { ${this.state.policiesEnabled !== false ? 'jump policy_routes;' : ''} }\n` +
       `    chain policy_routes {\n${classification ? `${classification}\n` : ''}    }\n` +
@@ -1045,10 +1071,16 @@ class RoutingManager {
         }
       } catch (_) { /* Process availability and peer status are separate signals. */ }
     }
+    const status = connectionStatus({ ...runtime, ...stats, readable });
+    if (status === 'connected' && runtime.status === 'up') {
+      runtime.connectedSince ||= new Date().toISOString();
+    } else {
+      delete runtime.connectedSince;
+    }
     return { ...upstream, status: runtime.status, endpoint, error: runtime.error || configurationError,
       listenPort: runtime.listenPort || configuredListenPort, configuredListenPort,
       portInPublishedRange: Boolean(configuredListenPort && this.upstreamPorts.includes(configuredListenPort)),
-      connectionStatus: connectionStatus({ ...runtime, ...stats, readable }), ...stats };
+      connectionStatus: status, connectedSince: runtime.connectedSince || null, endpointPing: runtime.endpointPing || null, ...stats };
   }
 
   upstreamIdentity(upstream) {
@@ -1059,12 +1091,32 @@ class RoutingManager {
 
   upstreamGeneration(upstream) { return runtimeGeneration(upstream.interface); }
 
+  checkEndpointPing(upstream, raw) {
+    const runtime = this.runtime.get(upstream.id);
+    if (!runtime || raw.status !== 'up' || !raw.endpoint) return;
+    const address = raw.endpoint.replace(/^\[([^\]]+)\]:\d+$|^([^:]+):\d+$/, '$1$2');
+    const family = isIP(address);
+    if (!family || runtime.pingPending || (runtime.pingAddress === address && Date.now() - runtime.pingStartedAt < 30_000)) return;
+    if (runtime.pingAddress !== address) runtime.endpointPing = null;
+    runtime.pingAddress = address;
+    runtime.pingStartedAt = Date.now();
+    runtime.pingPending = true;
+    execFile('ping', [family === 6 ? '-6' : '-4', '-n', '-c', '1', '-W', '2', address],
+      { timeout: 3500, maxBuffer: 16_384, env: { ...process.env, LC_ALL: 'C' } }, (error, output) => {
+        const match = /time[=<]([0-9.]+)\s*ms/.exec(output);
+        runtime.endpointPing = { status: !error && match ? 'ok' :
+          error?.code === 1 ? 'timeout' : 'unknown', checkedAt: Date.now(), ms: !error && match ? Number(match[1]) : null };
+        runtime.pingPending = false;
+      });
+  }
+
   collectUpstreamStatistics() {
     if (!this.upstreamStatistics || !this.state) return;
     const clients = [], stats = new Map();
     for (const upstream of Object.values(this.state.upstreams)) {
       const identity = this.upstreamIdentity(upstream); clients.push(identity);
       const raw = this.readUpstreamStats(upstream);
+      this.checkEndpointPing(upstream, raw);
       if (raw.status === 'up' && raw.connectionStatus !== 'unknown') {
         try { stats.set(identity.publicKey, { ...raw, generation: this.upstreamGeneration(upstream) }); } catch (_) {}
       }
@@ -1094,7 +1146,7 @@ class RoutingManager {
   upstreamStats(upstream) {
     const raw = this.readUpstreamStats(upstream);
     const totals = this.upstreamStatistics?.values(this.upstreamIdentity(upstream));
-    return totals ? { ...raw, transferRx: totals.transferRx, transferTx: totals.transferTx } : raw;
+    return totals ? { ...raw, transferRx: totals.transferRx, transferTx: totals.transferTx, trafficResetAt: totals.trafficResetAt } : raw;
   }
 
   snapshot() {

@@ -81,4 +81,15 @@ function connectionStatus({ status, readable = true, latestHandshakeAt, persiste
   return persistentKeepalive && startedAt && now - startedAt > threshold ? 'stale' : 'awaiting';
 }
 
-module.exports = { listenPort, portRange, reverseInitiation, peerConnectionLines, withListenPort, connectionStatus };
+// Track the period covered by continuously fresh runtime handshakes.
+function clientOnlinePeriod(previous, sample, now = Date.now()) {
+  const handshake = Date.parse(sample?.latestHandshakeAt);
+  const windowMs = 300_000;
+  if (!Number.isFinite(handshake) || now - handshake < -60_000 || now - handshake >= windowMs) return null;
+  const samePeriod = previous && previous.generation === sample.generation &&
+    handshake >= previous.handshake && handshake - previous.handshake < windowMs;
+  return { since: samePeriod ? previous.since : new Date(Math.min(handshake, now)).toISOString(),
+    handshake, generation: sample.generation };
+}
+
+module.exports = { listenPort, portRange, reverseInitiation, peerConnectionLines, withListenPort, connectionStatus, clientOnlinePeriod };

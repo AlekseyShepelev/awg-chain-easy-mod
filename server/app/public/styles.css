@@ -138,6 +138,9 @@ td { padding: var(--space-3); border-bottom: 1px solid var(--color-line); vertic
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: var(--color-panel-subtle); }
 .client-name { font-weight: 650; }
+.client-rule-mode { display: block; }
+.client-rule-apply { color: color-mix(in srgb, var(--color-success) 70%, var(--color-text-muted)); }
+.client-rule-skip { color: color-mix(in srgb, var(--color-danger) 70%, var(--color-text-muted)); }
 .resource-details { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); overflow-wrap: anywhere; }
 .toggle-field { display: flex; align-items: center; gap: var(--space-2); }
 .toggle-field input { width: var(--space-4); height: var(--space-4); min-height: 0; margin: 0; }
@@ -244,6 +247,8 @@ tbody tr:hover { background: var(--color-panel-subtle); }
 
 #upstream-rows .client-name { white-space: nowrap; }
 
+.traffic-display { display: inline-grid; }
+.traffic-age { text-align: center; white-space: nowrap; }
 .traffic-values { display: inline-block; white-space: pre; line-height: 1.65; }
 .dns-actions-heading { text-align: right; }
 .dns-check-status { white-space: nowrap; }
@@ -457,3 +462,35 @@ dialog#failover-settings { margin: auto; }
 .about-mod-intro { margin-top: var(--space-4); }
 
 .about-awg-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+
+.upstream-connection-duration { display: inline-flex; align-items: center; }
+.about-version-row { display: flex; align-items: center; gap: var(--space-2); }
+.about-changelog-button.button.compact {
+  width: 1.125rem; height: 1.125rem; min-width: 0; min-height: 0;
+  padding: 0; border-radius: 50%; font-size: .75rem; line-height: 1;
+  display: inline-grid; place-items: center; flex: none;
+}
+.about-changelog { width: min(38rem, calc(100vw - 2rem)); }
+.about-changelog-content { overflow-y: auto; min-height: 0; padding-inline-end: var(--space-2); }
+.about-changelog-content h3 { margin-block: var(--space-3) var(--space-1); }
+.about-changelog-content ul { padding-inline-start: 1.3rem; }
+
+.client-routing-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-1) var(--space-3);
+}
+.client-routing-fields .field { min-width: 0; }
+.client-routing-fields select { width: 100%; max-width: none; }
+.client-routing-fields .client-routing-hint {
+  grid-column: 1 / -1;
+  height: 5lh;
+  margin: 0;
+
+}
+@media (max-width: 520px) {
+  .client-routing-fields .client-routing-hint { height: 8lh; }
+}
+
+.client-routing-fields .client-rules-warning { grid-column: 1 / -1; margin: 0; color: var(--color-danger); }

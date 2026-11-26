@@ -22,8 +22,10 @@ COPY --from=wireguard-go-build /usr/local/bin/awg-chain-probe /usr/local/bin/awg
 WORKDIR /app
 COPY app/ ./
 ARG BUILD_COMMIT
+ARG BUILD_COMMIT_DATE
+ARG BUILD_CREATED_AT
 LABEL org.opencontainers.image.revision=${BUILD_COMMIT}
-RUN node -e 'const fs = require("node:fs"); const sha = process.env.BUILD_COMMIT; if (!sha) process.exit(0); if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error("Invalid build commit"); const info = JSON.parse(fs.readFileSync("build-info.json", "utf8")); info.commit = sha; fs.writeFileSync("build-info.json", JSON.stringify(info, null, 2) + "\n");'
+RUN node stamp-build.js
 RUN for file in ./*.js; do node --check "$file"; done \
     && node -e "require('./routing'); require('./auth')"
 COPY entrypoint.sh /usr/local/bin/awg-chain-easy-entrypoint

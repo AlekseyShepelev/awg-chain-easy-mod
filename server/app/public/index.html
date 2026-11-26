@@ -195,15 +195,15 @@
         <p>AWG Chain Easy is a web panel for managing a VPN gateway built on AmneziaWG 3, AmneziaWG 2 and WireGuard. It manages client profiles and routes traffic directly or through upstream tunnels using domain and IP rules and automatic failover.</p>
         <p class="about-mod-intro"><strong>AWG Chain Easy Mod adds:</strong></p>
         <ul>
-          <li>Per-client routing: automatic, direct or through a specific upstream tunnel.</li>
-          <li>One export window for configurations, vpn:// keys and QR codes, including the Amnezia format.</li>
-          <li>Persistent client and tunnel traffic statistics and saved client handshake times.</li>
-          <li>A Russian and English interface with controls for DNS proxy, failover and export preferences.</li>
-          <li>A unified routing mode, priority-based failover and editable upstream tunnels.</li>
-          <li>Sortable management tables, editable client addresses and sign-in sessions that survive container restarts.</li>
-          <li>Ordered health checks that use fallback URLs only when needed.</li>
+          <li>Per-client routing with optional destination rules for pinned tunnels.</li>
+          <li>IPv6 upstream endpoints, priority-based failover and tunnel diagnostics.</li>
+          <li>Unified export of .conf, vpn:// and QR codes, including the Amnezia format.</li>
+          <li>Persistent traffic statistics, last handshake history and time since reset.</li>
+          <li>Edit tunnel names, addresses, ports, priorities and configurations in the panel.</li>
+          <li>Sortable tables, editable client IP addresses and sign-in sessions that survive container restarts.</li>
+          <li>Russian and English interface, DNS proxy settings and AmneziaWG update checks.</li>
         </ul>
-        <dl class="about-versions"><dt>Fork version</dt><dd id="about-version">—</dd><dt>Build commit</dt><dd id="about-build-commit">—</dd><dt>AmneziaWG runtime</dt><dd class="about-awg-row"><span id="about-awg">—</span> <button id="about-awg-check" type="button" class="button secondary compact">Check for update</button><span id="about-awg-result" role="status" hidden></span></dd></dl>
+        <dl class="about-versions"><dt>Fork version</dt><dd class="about-version-row"><span id="about-version">—</span><button class="button secondary compact about-changelog-button" id="about-changelog-open" type="button" aria-label="Changelog" title="Changelog">?</button></dd><dt>Build commit</dt><dd id="about-build-commit">—</dd><dt>Commit date</dt><dd id="about-commit-date">—</dd><dt>Build date</dt><dd id="about-build-date">—</dd><dt>amneziawg-go version</dt><dd class="about-awg-row"><span id="about-awg">—</span> <button id="about-awg-check" type="button" class="button secondary compact">Check for update</button><span id="about-awg-result" role="status" hidden></span></dd></dl>
         <p><span>Fork repository</span>: <a href="https://github.com/AlekseyShepelev/awg-chain-easy-mod" target="_blank" rel="noopener noreferrer">AlekseyShepelev/awg-chain-easy-mod</a></p>
         <div class="about-upstream"><h3>Original project</h3><p><span>Repository</span>: <a href="https://github.com/artyomb/awg-chain-easy" target="_blank" rel="noopener noreferrer">artyomb/awg-chain-easy</a><br><span>Project author</span>: <a href="https://github.com/artyomb" target="_blank" rel="noopener noreferrer">artyomb</a></p><dl class="about-versions"><dt>Base commit</dt><dd id="about-commit">—</dd></dl></div>
       </section>
@@ -251,11 +251,21 @@
         <form id="create-form" class="stack-form">
           <div class="field"><label for="client-name">Name</label><input id="client-name" name="name" maxlength="64" autocomplete="off" required></div>
           <div class="field"><label for="client-protocol">Protocol</label><select id="client-protocol" name="protocol"><option value="AWG3">AWG3</option><option value="AWG2">AWG2 (legacy/mobile)</option><option value="WG">WireGuard (native)</option></select></div>
-          <div class="field"><label for="client-route">Routing mode</label><select id="client-route" aria-describedby="client-route-hint"></select><p id="client-route-hint" class="secondary-value"></p></div>
+      <div class="client-routing-fields">
+        <div class="field"><label for="client-route">Routing mode</label><select id="client-route" aria-describedby="client-route-hint"></select></div>
+        <div class="field"><label for="client-route-policies">Apply routing rules</label><select id="client-route-policies" aria-describedby="client-route-hint"><option value="yes">Apply</option><option value="no">Do not apply</option></select></div>
+        <p id="client-route-hint" class="secondary-value client-routing-hint"></p>
+      </div>
 
         <div class="confirmation-actions modal-footer"><button id="cancel-create-button" class="button secondary" type="button">Cancel</button><button class="button primary" type="submit">Create client</button></div></form>
         <p id="create-error" class="form-error" role="alert"></p>
       </dialog>
+
+  <dialog id="about-changelog" class="dialog footer-dialog about-changelog" aria-labelledby="about-changelog-title">
+    <div class="dialog-heading"><h2 id="about-changelog-title">Changelog</h2></div>
+    <div id="about-changelog-content" class="about-changelog-content"></div>
+    <form method="dialog" class="confirmation-actions modal-footer"><button class="button secondary" type="submit">Close</button></form>
+  </dialog>
 
   <dialog id="peer-connection-dialog" class="dialog footer-dialog" aria-labelledby="peer-connection-title">
     <div class="dialog-heading"><h2 id="peer-connection-title">Peer connection</h2></div>
@@ -306,8 +316,12 @@
     <div class="dialog-heading"><h2 id="rename-title">Edit client</h2></div>
     <form id="rename-form" class="stack-form">
       <label><span>Name</span><input id="rename-name" type="text" required maxlength="64" autocomplete="off"></label>
-      <label><span>Routing mode</span><select id="rename-route" aria-describedby="rename-route-hint"></select></label>
-      <p id="rename-route-hint" class="secondary-value"></p>
+      <div class="client-routing-fields">
+        <div class="field"><label for="rename-route">Routing mode</label><select id="rename-route" aria-describedby="rename-route-hint"></select></div>
+        <div class="field"><label for="rename-route-policies">Apply routing rules</label><select id="rename-route-policies" aria-describedby="rename-route-hint"><option value="yes">Apply</option><option value="no">Do not apply</option></select></div>
+        <p id="rename-route-hint" class="secondary-value client-routing-hint"></p>
+        <p id="rename-rules-warning" class="client-rules-warning" role="status" hidden>After saving, reconnect the VPN on the client device to apply the changes.</p>
+      </div>
       <p class="secondary-value">Changing the routing mode may interrupt active connections. No profile reimport is needed.</p>
       <div class="field wide"><label for="rename-address-octet">Address</label>
         <div class="client-address-edit"><span id="rename-address-prefix" class="mono"></span><input id="rename-address-octet" class="mono" aria-label="Last address octet" type="number" min="2" max="254" step="1" required></div>
@@ -331,6 +345,12 @@
     <pre id="config-vpn-text" class="code-input vpn-preview" aria-label="VPN connection string" tabindex="0" hidden></pre>
     <p id="config-error" class="form-error" role="alert"></p>
     <div class="config-actions confirmation-actions modal-footer"><button id="close-config-button" class="button secondary" type="button">Close</button><a id="config-download" class="button primary" hidden>Download</a><button id="config-copy" class="button secondary" type="button" hidden>Copy</button></div>
+  </dialog>
+
+  <dialog id="routing-rules-info" class="dialog footer-dialog" aria-labelledby="routing-rules-info-title">
+    <div class="dialog-heading"><h2 id="routing-rules-info-title">Routing rules updated</h2></div>
+    <p>Reconnect affected VPN clients to apply the changes.</p>
+    <form method="dialog" class="confirmation-actions modal-footer"><button class="button primary" type="submit">OK</button></form>
   </dialog>
 
   <dialog id="confirm-action-dialog" class="dialog" aria-labelledby="confirm-action-title" aria-describedby="confirm-action-message">

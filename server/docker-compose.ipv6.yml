@@ -1,0 +1,15 @@
+services:
+  awg-chain-easy:
+    networks:
+      default: {}
+      upstream-ipv6: {}
+    sysctls:
+      net.ipv6.conf.all.forwarding: "0"
+
+networks:
+  upstream-ipv6:
+    driver: bridge
+    enable_ipv4: false
+    enable_ipv6: true
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv6: nat

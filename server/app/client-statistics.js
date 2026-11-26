@@ -31,11 +31,11 @@ class ClientStatistics {
     if (stored.version !== 1 || !stored.entries || Array.isArray(stored.entries) || typeof stored.entries !== 'object') throw new Error('Invalid client statistics file');
     for (const [id, e] of Object.entries(stored.entries)) {
       if (!e || typeof e.publicKey !== 'string' || typeof e.protocol !== 'string' || counter(e.transferRx) === null || counter(e.transferTx) === null) throw new Error('Invalid client statistics entry');
-      this.entries[id] = this.empty(e, { transferRx: e.transferRx, transferTx: e.transferTx, rawRx: counter(e.rawRx), rawTx: counter(e.rawTx), generation: typeof e.generation === 'string' ? e.generation : null, latestHandshakeAt: stamp(e.latestHandshakeAt), handshakeFloor: stamp(e.handshakeFloor) });
+      this.entries[id] = this.empty(e, { transferRx: e.transferRx, transferTx: e.transferTx, rawRx: counter(e.rawRx), rawTx: counter(e.rawTx), generation: typeof e.generation === 'string' ? e.generation : null, latestHandshakeAt: stamp(e.latestHandshakeAt), handshakeFloor: stamp(e.handshakeFloor), trafficResetAt: stamp(e.trafficResetAt) });
     }
   }
   empty(client, extra = {}) {
-    return { publicKey: client.publicKey, protocol: client.protocol || 'AWG3', transferRx: 0, transferTx: 0, rawRx: null, rawTx: null, generation: null, latestHandshakeAt: null, handshakeFloor: null, ...extra };
+    return { publicKey: client.publicKey, protocol: client.protocol || 'AWG3', transferRx: 0, transferTx: 0, rawRx: null, rawTx: null, generation: null, latestHandshakeAt: null, handshakeFloor: null, trafficResetAt: null, ...extra };
   }
   save(entries) {
     if (JSON.stringify(entries) === JSON.stringify(this.entries) && fs.existsSync(this.filename)) return;
@@ -75,22 +75,24 @@ class ClientStatistics {
   }
   reset(clients, stats, selectedIds = null) {
     const entries = {};
+    const trafficResetAt = new Date().toISOString();
     for (const client of clients) {
       const old = identity(client, this.entries[client.id]) ? this.entries[client.id] : this.empty(client);
       if (selectedIds && !selectedIds.has(client.id)) { entries[client.id] = { ...old }; continue; }
       const sample = stats.get(client.publicKey);
       const floor = [old.latestHandshakeAt, old.handshakeFloor, stamp(sample?.latestHandshakeAt)].filter(Boolean).sort().pop() || null;
-      entries[client.id] = this.empty(client, { rawRx: counter(sample?.transferRx), rawTx: counter(sample?.transferTx), generation: typeof sample?.generation === 'string' ? sample.generation : null, handshakeFloor: floor });
+      entries[client.id] = this.empty(client, { rawRx: counter(sample?.transferRx), rawTx: counter(sample?.transferTx), generation: typeof sample?.generation === 'string' ? sample.generation : null, handshakeFloor: floor, trafficResetAt });
     }
     this.save(entries);
   }
   resetTraffic(clients, stats, selectedIds = null) {
     const entries = {};
+    const trafficResetAt = new Date().toISOString();
     for (const client of clients) {
       const old = identity(client, this.entries[client.id]) ? this.entries[client.id] : this.empty(client);
       if (selectedIds && !selectedIds.has(client.id)) { entries[client.id] = { ...old }; continue; }
       const sample = stats.get(client.publicKey);
-      entries[client.id] = { ...old, transferRx: 0, transferTx: 0 };
+      entries[client.id] = { ...old, transferRx: 0, transferTx: 0, trafficResetAt };
       if (typeof sample?.generation === 'string') {
         entries[client.id].rawRx = counter(sample.transferRx);
         entries[client.id].rawTx = counter(sample.transferTx);
@@ -101,7 +103,7 @@ class ClientStatistics {
   }
   values(client) {
     const e = identity(client, this.entries[client.id]) ? this.entries[client.id] : this.empty(client);
-    return { latestHandshakeAt: e.latestHandshakeAt, transferRx: e.transferRx, transferTx: e.transferTx };
+    return { latestHandshakeAt: e.latestHandshakeAt, transferRx: e.transferRx, transferTx: e.transferTx, trafficResetAt: e.trafficResetAt };
   }
 }
 module.exports = { ClientStatistics, runtimeGeneration };

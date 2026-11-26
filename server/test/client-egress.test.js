@@ -18,7 +18,7 @@ test('missing pinned tunnel fails closed; disabled tunnel keeps pin; inactive cl
 });
 test('mode validation and atomic cleanup prevent reused addresses inheriting pins',async()=>{
  const clients=[{address:'10.8.3.2',egress:'upstream',upstreamId:'b'}];const r=make(clients);assert.throws(()=>r.validateClientEgress({egress:'upstream',upstreamId:'missing'}));
- assert.deepEqual(r.validateClientEgress({egress:'direct',upstreamId:'b'}),{egress:'direct',upstreamId:null});
+ assert.deepEqual(r.validateClientEgress({egress:'direct',upstreamId:'b'}),{egress:'direct',upstreamId:null,useRoutingPolicies:false});
  let s;r.applyNftScript=x=>(s=x,{status:0});await r.syncDirectClients();assert.ok(s.includes('add element inet awg_chain_easy client_upstream_0 { 10.8.3.2 }'));
  clients[0].egress='default';await r.syncDirectClients();assert.ok(!s.includes('add element'));
 });
@@ -31,4 +31,16 @@ test('destination policy marks survive return from the policy gate', () => {
  assert.match(r.nftScript(),/chain policy_gate \{ jump policy_routes; \}/);
  r.state.policiesEnabled=false;
  assert.match(r.nftScript(),/chain policy_gate \{  \}/);
+});
+
+
+test('policy-enabled pinned clients use the DNS proxy and have their own fallback mark', () => {
+  const r = make([{ address: '10.8.3.2', enabled: true, egress: 'upstream', upstreamId: 'b', useRoutingPolicies: true }]);
+  const sets = r.clientSourceSets();
+  assert.deepEqual(sets.policy_pinned_clients_v4, ['10.8.3.2']);
+  assert.deepEqual(sets.policy_client_upstream_0, ['10.8.3.2']);
+  assert.deepEqual(sets.client_upstream_0, []);
+  assert.match(r.nftScript(), /chain pinned_policy \{\s+jump policy_gate\s+ct mark != 0 return\s+ip saddr @policy_client_upstream_0 meta mark set 0x201/);
+  r.state.policiesEnabled = false;
+  assert.match(r.nftScript(), /chain policy_gate \{  \}/);
 });

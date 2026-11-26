@@ -196,6 +196,21 @@ test('isolated upstream addresses and client reservations through the live API',
     await api(`/api/routing/upstreams/${imported.id}`, 'DELETE');
   });
 
+  await t.test('routing rules opt-in changes the isolated kernel sets and persists through the API', async () => {
+    const url = '/api/wireguard/client/' + art.id;
+    const route = { egress: 'upstream', upstreamId: firstUpstream.id, useRoutingPolicies: true };
+    await api(url, 'PUT', route);
+    const client = (await clients()).find(c => c.id === art.id);
+    assert.equal(client.useRoutingPolicies, true);
+    const list = (name) => execFileSync('nft', ['list', 'set', 'inet', 'awg_chain_easy', name], {encoding:'utf8'});
+    assert.ok(list('policy_pinned_clients_v4').includes(client.address));
+    await api(url, 'PUT', { useRoutingPolicies: false });
+    assert.equal((await clients()).find(c => c.id === art.id).useRoutingPolicies, false);
+    assert.ok(!list('policy_pinned_clients_v4').includes(client.address));
+    await api(url, 'PUT', { egress: 'default' });
+    assert.equal((await clients()).find(c => c.id === art.id).useRoutingPolicies, true);
+  });
+
   await t.test('default-route failover through the live API and kernel routing', async () => {
     await require('./failover-api')(api, upstream, firstUpstream.id);
   });
